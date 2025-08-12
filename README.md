@@ -6,3 +6,6 @@ I did it for my use.
 It was generated with: https://lovable.dev/
 
 And made changes with: https://cursor.com/
+
+## Project GitHab Pages link:
+https://floron.github.io/M3U8-editor/
