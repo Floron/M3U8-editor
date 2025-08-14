@@ -2,23 +2,24 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
-import basicSsl from '@vitejs/plugin-basic-ssl'
+//import basicSsl from '@vitejs/plugin-basic-ssl'
+//import fs from 'fs';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+ /*
+  preview: {
+    https: {
+      key: fs.readFileSync('./cert/server.key'), // Path to your private key file
+      cert: fs.readFileSync('./cert/server.crt'), // Path to your certificate file
+    },
+  },
+  */
   server: {
     host: "::",
     port: 8080,
   },
   plugins: [
-    basicSsl({
-      /** name of certification */
-      name: 'test'
-      /** custom trust domains */
-     // domains: ['*.custom.com'],
-      /** custom certification directory */
-      //certDir: '/Users/.../.devServer/cert',
-    }),
     react(),
     mode === 'development' &&
     componentTagger(),
