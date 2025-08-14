@@ -38,10 +38,10 @@ class EPGService {
     this.isLoading = true;
 
     try {
-      console.log('Starting EPG download from https://epg.one/epg.xml.gz');
+      console.log('Starting EPG download from http://ru.epg.one/epg.xml.gz');
       
       // Download the gzipped EPG file
-      const response = await fetch('https://epg.one/epg.xml.gz', {
+      const response = await fetch('http://ru.epg.one/epg.xml.gz', {
         mode: 'cors',
         headers: {
           'Access-Control-Allow-Origin': 'https://floron.github.io, http://ru.epg.one, http://epg.one, https://ru.epg.one, https://epg.one, http://localhost',
