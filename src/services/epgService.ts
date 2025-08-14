@@ -42,11 +42,12 @@ class EPGService {
       
       // Download the gzipped EPG file
       const response = await fetch('http://ru.epg.one/epg.xml.gz', {
-        mode: 'cors',
+        //mode: 'cors',
+        method: 'GET',
         headers: {
-          'Access-Control-Allow-Origin': 'https://floron.github.io, http://ru.epg.one, http://epg.one, https://ru.epg.one, https://epg.one, http://localhost',
-          'Access-Control-Allow-Credentials': 'true',
-          'Access-Control-Allow-Headers': 'X-Requested-With,content-type',
+          //'Access-Control-Allow-Origin': 'https://floron.github.io, http://ru.epg.one, http://epg.one, https://ru.epg.one, https://epg.one, http://localhost',
+          //'Access-Control-Allow-Credentials': 'true',
+          //'Access-Control-Allow-Headers': 'X-Requested-With,content-type',
           'Accept': 'application/xml, application/gzip, */*',
         }
       });
