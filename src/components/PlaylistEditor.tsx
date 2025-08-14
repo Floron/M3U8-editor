@@ -7,6 +7,7 @@ import { SearchBar } from './SearchBar';
 import { ControlPanel } from './ControlPanel';
 // GroupsFooter removed
 import { GroupsSidebar } from './GroupsSidebar';
+import { GripVertical } from 'lucide-react';
 
 interface PlaylistEditorProps {
   data: PlaylistData;
@@ -36,6 +37,7 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
   }, [data]);
 
   const handleDragStart = (event: DragStartEvent) => {
+    console.log('Drag start event:', event.active.id, event.active.data);
     setActiveId(event.active.id as string);
   };
 
@@ -45,6 +47,11 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
 
     const activeId = active.id as string;
     const overId = over.id as string;
+
+    // If dragging a group, don't need to find channel
+    if (activeId.startsWith('group-')) {
+      return;
+    }
 
     // Find the active channel
     const activeChannel = findChannelById(activeId);
@@ -66,6 +73,29 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     const activeId = active.id as string;
     const overId = over.id as string;
 
+    // Check if we're dragging a group (from sidebar)
+    if (activeId.startsWith('group-')) {
+      console.log('Dragging group detected:', activeId);
+      const sourceGroupId = activeId.replace('group-', '');
+      
+      // If dropping on another group in sidebar, reorder groups
+      if (overId.startsWith('group-')) {
+        console.log('Dropping group on group:', overId);
+        const targetGroupId = overId.replace('group-', '');
+        if (sourceGroupId !== targetGroupId) {
+          console.log('Calling reorderGroups:', sourceGroupId, '->', targetGroupId);
+          reorderGroups(sourceGroupId, targetGroupId);
+        } else {
+          console.log('Same group, no reordering needed');
+        }
+        return;
+      }
+      
+      console.log('Group dropped on non-group target:', overId);
+      // If dropping on sidebar item (for channels), don't handle here
+      // Let the existing sidebar logic handle it
+    }
+
     const activeChannel = findChannelById(activeId);
     if (!activeChannel) return;
 
@@ -73,8 +103,8 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     const isMultiDrag = activeChannel.selected && selectedIds.length > 1;
 
     // Dropped over groups sidebar item: move to end of that group
-    if (overId.startsWith('sidebar-')) {
-      const targetGroupId = overId.replace('sidebar-', '');
+    if (overId.startsWith('group-')) {
+      const targetGroupId = overId.replace('group-', '');
       const targetGroup = data.groups.find(g => g.id === targetGroupId);
       if (!targetGroup) return;
       const endIndex = targetGroup.channels.filter(ch => !selectedIds.includes(ch.id)).length;
@@ -310,6 +340,30 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     }));
   };
 
+  const reorderGroups = (fromGroupId: string, toGroupId: string) => {
+    console.log('reorderGroups called with:', fromGroupId, '->', toGroupId);
+    const fromIndex = data.groups.findIndex(group => group.id === fromGroupId);
+    const toIndex = data.groups.findIndex(group => group.id === toGroupId);
+    
+    console.log('Current groups:', data.groups.map(g => ({ id: g.id, name: g.name })));
+    console.log('Indices:', fromIndex, '->', toIndex);
+    
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+      console.log('Invalid indices, returning');
+      return;
+    }
+    
+    const newGroups = [...data.groups];
+    const [moved] = newGroups.splice(fromIndex, 1);
+    const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    newGroups.splice(insertIndex, 0, moved);
+    
+    console.log('New groups order:', newGroups.map(g => ({ id: g.id, name: g.name })));
+    console.log('Calling onDataChange...');
+    onDataChange({ groups: newGroups });
+    console.log('onDataChange called');
+  };
+
   const hasSearchResults = filteredData.groups.some(group => group.channels.length > 0);
 
   return (
@@ -353,18 +407,42 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }}
         />
+        
+        {/* Test button for debugging */}
+        <button 
+          onClick={() => {
+            if (data.groups.length >= 2) {
+              console.log('Test reorder - swapping first two groups');
+              reorderGroups(data.groups[0].id, data.groups[1].id);
+            }
+          }}
+          className="fixed bottom-4 right-4 bg-blue-500 text-white p-2 rounded"
+        >
+          Test Reorder
+        </button>
 
         {/* GroupsFooter removed */}
       </div>
 
       <DragOverlay>
         {activeId ? (
-          <ChannelItem
-            channel={findChannelById(activeId)!}
-            onDelete={() => {}}
-            onToggleSelection={() => {}}
-            isDragging
-          />
+          activeId.startsWith('group-') ? (
+            <div className="bg-card border rounded-lg p-3 shadow-lg">
+              <div className="flex items-center gap-2">
+                <GripVertical className="w-4 h-4 text-muted-foreground" />
+                <span className="font-medium">
+                  {data.groups.find(g => g.id === activeId.replace('group-', ''))?.name}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <ChannelItem
+              channel={findChannelById(activeId)!}
+              onDelete={() => {}}
+              onToggleSelection={() => {}}
+              isDragging
+            />
+          )
         ) : null}
       </DragOverlay>
     </DndContext>
