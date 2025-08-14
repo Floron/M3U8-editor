@@ -368,14 +368,19 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
 
   return (
     <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-      <div className="space-y-6 lg:flex lg:items-start lg:gap-6">
-        <SearchBar
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          onSelectAll={selectAllSearchResults}
-          hasResults={hasSearchResults}
-        />
+      {/* Centered Search Bar */}
+      <div className="flex justify-center mb-8">
+        <div className="w-full max-w-md">
+          <SearchBar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onSelectAll={selectAllSearchResults}
+            hasResults={hasSearchResults}
+          />
+        </div>
+      </div>
 
+      <div className="space-y-6 lg:flex lg:items-start lg:gap-6">
         <div className="flex-1 space-y-6">
           <ControlPanel
             onAddGroup={addNewGroup}
