@@ -135,14 +135,24 @@ class EPGService {
                     undefined;
         
         //console.log(`Found ${name} channel. Icon: ${icon}.`);
-
         if (name) {
-          channels.push({
-            id: `epg-${index}`,
-            name: name.trim(),
-            icon: icon || undefined
-          });
-        }
+            const secureIcon = icon.replace("http", "https") ;
+            
+            channels.push({
+              id: `epg-${index}`,
+              name: name.trim(),
+              icon: secureIcon
+            });
+          }
+
+              /*   if (name) {
+           channels.push({
+             id: `epg-${index}`,
+             name: name.trim(),
+             icon: icon || undefined
+           });
+         }
+           */
         
       });
 
@@ -171,11 +181,11 @@ class EPGService {
       console.error('Error extracting channels from XML:', error);
     }
 
-    /*
+    
       channels.forEach(channel => {
         console.log(`Id: ${channel.id}. Channel: ${channel.name}. Icon: ${channel.icon}.`);
       });
-    */
+    
     return channels;
   }
 
@@ -194,6 +204,30 @@ class EPGService {
     );
     
     return channel?.icon;
+  }
+
+  async fetchChannelLogo(iconUrl: string): Promise<string | null> {
+    if (!iconUrl) return null;
+    
+    try {
+      const response = await fetch(iconUrl, {
+        method: 'GET',
+        headers: {
+          'Origin': 'null',
+          //'Accept': 'image/*, */*'
+        }
+      });
+      
+      if (response.ok) {
+        return iconUrl;
+      }
+      
+      console.warn(`Failed to fetch channel logo from ${iconUrl}: ${response.status}`);
+      return null;
+    } catch (error) {
+      console.warn(`Error fetching channel logo from ${iconUrl}:`, error);
+      return null;
+    }
   }
 
   isDownloading(): boolean {

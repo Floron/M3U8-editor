@@ -42,7 +42,7 @@ const Index = () => {
             {epgLoading && (
               <div className="text-blue-600 flex items-center justify-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                Загрузка TV программы...
+                Загружаю TV программу из http://epg.one/epg.xml.gz ...
               </div>
             )}
             
