@@ -44,7 +44,7 @@ class EPGService {
       const response = await fetch('https://epg.one/epg.xml.gz', {
         mode: 'cors',
         headers: {
-          'Access-Control-Allow-Origin': 'https://epg.one, http://localhost',
+          'Access-Control-Allow-Origin': 'http://ru.epg.one, http://epg.one, https://ru.epg.one, https://epg.one, http://localhost',
           'Access-Control-Allow-Credentials': 'true',
           'Access-Control-Allow-Headers': 'X-Requested-With,content-type',
           'Accept': 'application/xml, application/gzip, */*',
