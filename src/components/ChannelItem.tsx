@@ -1,9 +1,10 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, GripVertical, Tv } from 'lucide-react';
 import { Channel } from '@/types/playlist';
 import { cn } from '@/lib/utils';
+import { useEPG } from '@/hooks/useEPG';
 
 interface ChannelItemProps {
   channel: Channel;
@@ -13,6 +14,10 @@ interface ChannelItemProps {
 }
 
 export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }: ChannelItemProps) => {
+  const { findChannelIcon } = useEPG();
+  // Use channel icon from playlist data first, then fallback to EPG lookup
+  const channelIcon = channel.icon || findChannelIcon(channel.name);
+  
   const {
     attributes,
     listeners,
@@ -58,6 +63,28 @@ export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }
         checked={channel.selected}
         onCheckedChange={() => onToggleSelection(channel.id)}
       />
+
+      {/* Channel Image/Icon */}
+      <div className="flex-shrink-0 w-8 h-8 rounded-md bg-muted flex items-center justify-center overflow-hidden">
+        {channelIcon ? (
+          <>
+            <img 
+              src={channelIcon} 
+              alt={channel.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to TV icon if image fails to load
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                target.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <Tv className="w-4 h-4 text-muted-foreground hidden" />
+          </>
+        ) : (
+          <Tv className="w-4 h-4 text-muted-foreground" />
+        )}
+      </div>
 
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm truncate">{channel.name}</div>

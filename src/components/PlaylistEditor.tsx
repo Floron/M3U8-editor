@@ -18,6 +18,8 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  
+
 
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;
@@ -341,27 +343,17 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
   };
 
   const reorderGroups = (fromGroupId: string, toGroupId: string) => {
-    console.log('reorderGroups called with:', fromGroupId, '->', toGroupId);
     const fromIndex = data.groups.findIndex(group => group.id === fromGroupId);
     const toIndex = data.groups.findIndex(group => group.id === toGroupId);
     
-    console.log('Current groups:', data.groups.map(g => ({ id: g.id, name: g.name })));
-    console.log('Indices:', fromIndex, '->', toIndex);
-    
-    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
-      console.log('Invalid indices, returning');
-      return;
-    }
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
     
     const newGroups = [...data.groups];
     const [moved] = newGroups.splice(fromIndex, 1);
     const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
     newGroups.splice(insertIndex, 0, moved);
     
-    console.log('New groups order:', newGroups.map(g => ({ id: g.id, name: g.name })));
-    console.log('Calling onDataChange...');
     onDataChange({ groups: newGroups });
-    console.log('onDataChange called');
   };
 
   const hasSearchResults = filteredData.groups.some(group => group.channels.length > 0);
@@ -413,18 +405,7 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
           }}
         />
         
-        {/* Test button for debugging */}
-        <button 
-          onClick={() => {
-            if (data.groups.length >= 2) {
-              console.log('Test reorder - swapping first two groups');
-              reorderGroups(data.groups[0].id, data.groups[1].id);
-            }
-          }}
-          className="fixed bottom-4 right-4 bg-blue-500 text-white p-2 rounded"
-        >
-          Test Reorder
-        </button>
+
 
         {/* GroupsFooter removed */}
       </div>

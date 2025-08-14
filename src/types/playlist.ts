@@ -5,6 +5,7 @@ export interface Channel {
   url: string;
   tvgRec?: string;
   selected?: boolean;
+  icon?: string;
 }
 
 export interface Group {
