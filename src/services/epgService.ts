@@ -45,10 +45,11 @@ class EPGService {
         //mode: 'cors',
         method: 'GET',
         headers: {
-          //'Access-Control-Allow-Origin': 'https://floron.github.io, http://ru.epg.one, http://epg.one, https://ru.epg.one, https://epg.one, http://localhost',
+          'Access-Control-Allow-Origin': 'https://floron.github.io, http://ru.epg.one, http://epg.one, https://ru.epg.one, https://epg.one, http://localhost',
           //'Access-Control-Allow-Credentials': 'true',
           //'Access-Control-Allow-Headers': 'X-Requested-With,content-type',
           'Accept': 'application/xml, application/gzip, */*',
+          'Connection': 'keep-alive'
         }
       });
       
