@@ -41,7 +41,7 @@ class EPGService {
       console.log('Starting EPG download from http://epg.one/epg.xml.gz');
       
       // Download the gzipped EPG file
-      const response = await fetch('https://epg.one/epg.xml.gz', {
+      const response = await fetch('https://cors-anywhere.herokuapp.com/http://ru.epg.one/epg.xml.gz', {
         //mode: 'cors',
         method: 'GET',
         headers: {
@@ -49,7 +49,7 @@ class EPGService {
           //'Access-Control-Allow-Credentials': 'true',
           //'Access-Control-Allow-Headers': 'X-Requested-With,content-type',
           'Accept': 'application/xml, application/gzip, */*',
-          'Connection': 'keep-alive'
+          'Origin': 'null'
         }
       });
       
