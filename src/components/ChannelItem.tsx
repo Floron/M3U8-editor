@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,22 +14,9 @@ interface ChannelItemProps {
 }
 
 export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }: ChannelItemProps) => {
-  const { findChannelIcon, fetchChannelLogo } = useEPG();
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  
+  const { findChannelIcon } = useEPG();
   // Use channel icon from playlist data first, then fallback to EPG lookup
   const channelIcon = channel.icon || findChannelIcon(channel.name);
-  
-  // Fetch logo with Origin header when component mounts or icon changes
-  useEffect(() => {
-    if (channelIcon && !logoUrl) {
-      fetchChannelLogo(channelIcon).then(url => {
-        if (url) {
-          setLogoUrl(url);
-        }
-      });
-    }
-  }, [channelIcon, logoUrl, fetchChannelLogo]);
   
   const {
     attributes,

@@ -44,10 +44,6 @@ export const useEPG = () => {
     return epgService.findChannelIcon(channelName);
   };
 
-  const fetchChannelLogo = async (iconUrl: string): Promise<string | null> => {
-    return epgService.fetchChannelLogo(iconUrl);
-  };
-
   useEffect(() => {
     // Auto-download EPG when the hook is first used
     if (!epgData && !isLoading && !isDownloaded) {
@@ -64,7 +60,6 @@ export const useEPG = () => {
     downloadEPG,
     forceRefresh,
     clearCache,
-    findChannelIcon,
-    fetchChannelLogo
+    findChannelIcon
   };
 };
