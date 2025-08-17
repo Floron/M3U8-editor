@@ -21,6 +21,6 @@ export default defineConfig(({ mode }) => ({
   },
   
   // Base public path when served in development or built in production
-  base: '/M3U8-editor/'
+  //base: '/M3U8-editor/'
    
 }));
