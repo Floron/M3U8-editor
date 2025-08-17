@@ -15,7 +15,7 @@ const App = () => (
       <Sonner />
      
        {/* BrowserRouter basename="/M3U8-editor" */}
-      <BrowserRouter>
+      <BrowserRouter basename="/M3U8-editor">
         <Routes>
           <Route path="/" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
