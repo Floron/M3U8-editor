@@ -42,7 +42,7 @@ class EPGService {
       
       // Download the gzipped EPG file
       // https://cors-anywhere.herokuapp.com/http://ru.epg.one/epg.xml.gz
-      const response = await fetch('/api/ru.epg.one/epg.xml.gz', {
+      const response = await fetch('/epg/ru.epg.one/epg.xml.gz', {
         mode: 'cors',
         headers: {
           'Accept': 'application/xml, application/gzip, */*',
