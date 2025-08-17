@@ -1,5 +1,0 @@
-[[redirects]]
-  from = "/epg/*"
-  to = "http://ru.epg.one/:splat"
-  status = 200
-  force = true
