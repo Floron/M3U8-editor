@@ -19,7 +19,7 @@ jobs:
         run: pip install requests
       - name: execute py script
         run: |
-          python ./epg/download_epg_data.py
+          python ${{ github.action_path }}/epg/download_epg_data.py
           #git add .
           #git commit -m "crongenerated"
           #git push
