@@ -6,7 +6,7 @@ on:
     - cron: "30 11 * * *"    #runs at 11:30 UTC everyday
 
 jobs:
-  getdataandrefreshmap:
+  get_epg_data:
     runs-on: ubuntu-latest
     steps:
       - name: checkout repo content
@@ -19,7 +19,7 @@ jobs:
         run: pip install requests
       - name: execute py script
         run: |
-          python /epg/download_epg_data.py
-          git add .
-          git commit -m "crongenerated"
-          git push
+          python ./epg/download_epg_data.py
+          #git add .
+          #git commit -m "crongenerated"
+          #git push
