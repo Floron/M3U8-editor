@@ -1,0 +1,22 @@
+name: downloader_epg_data
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 11 * * *'
+jobs:
+  download_tweets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Poetry
+        run: pipx install poetry
+      - name: Setup Python & Install dependencies
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9.14'
+          cache: 'poetry'
+      - run: poetry install
+      - name: Run downloader_epg_data.py
+        run: poetry run python epg/downloader_epg_data.py
