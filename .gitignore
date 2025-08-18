@@ -11,7 +11,7 @@ node_modules
 *.local
 
 #epg file
-epg/epg.xml.gz
+#epg/epg.xml.gz
 
 # Editor directories and files
 dist/*
