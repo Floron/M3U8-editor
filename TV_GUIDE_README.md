@@ -1,19 +1,21 @@
 # TV Guide Feature
 
-This application now includes a TV guide feature that automatically downloads Electronic Program Guide (EPG) data from [epg.one](http://epg.one/epg.xml.gz) to enhance the channel display with icons and additional information.
+This application now includes a TV guide feature that automatically loads Electronic Program Guide (EPG) data from a local file `/epg/epg.xml.gz` to enhance the channel display with icons and additional information.
 
 ## Features
 
-### Automatic EPG Download
-- **Auto-start**: When the site opens, it automatically begins downloading the TV guide
-- **Smart caching**: EPG data is cached for 24 hours to avoid unnecessary downloads
-- **Real-time status**: Shows download progress with visual indicators
-- **Success notification**: Displays an alert when download completes successfully
+### Automatic EPG Loading
+- **Auto-start**: When the site opens, it automatically begins loading the TV guide from local file
+- **Smart caching**: EPG data is cached for 24 hours to avoid unnecessary reloads
+- **Real-time status**: Shows loading progress with visual indicators
+- **Success notification**: Displays an alert when loading completes successfully
 - **Error handling**: Provides clear error messages and retry options
 
 ### Channel Icon Integration
-- **Automatic icon matching**: Finds channel icons by matching channel names from the EPG data
-- **Fallback support**: Uses default TV icon if no EPG icon is found
+- **Local icon matching**: Finds channel icons by matching channel names with local files in `/epgone_dark_logo/` folder
+- **File naming convention**: Icons are named as `channel_name.png` (lowercase, spaces replaced with underscores, Cyrillic letters preserved)
+- **Cyrillic support**: Properly handles Russian channel names like "Первый канал" → `первый_канал.png`
+- **Fallback support**: Uses default TV icon if no local icon is found
 - **Image error handling**: Gracefully falls back to default icon if image fails to load
 
 ### User Interface
@@ -26,17 +28,18 @@ This application now includes a TV guide feature that automatically downloads El
 ## Technical Implementation
 
 ### EPG Service (`src/services/epgService.ts`)
-- Downloads compressed EPG data from epg.one
+- Loads compressed EPG data from local file `/epg/epg.xml.gz`
 - Handles gzip decompression using browser APIs
 - Parses XML data to extract channel information
-- Provides channel icon lookup functionality
+- **Local icon lookup**: Matches channel names with local icon files in `/epgone_dark_logo/` folder
+- **Name cleaning**: Converts channel names to lowercase, replaces spaces with underscores, and preserves Cyrillic letters for file matching
 - **Smart caching system**: Stores EPG data in localStorage for 24 hours
 - **Cache validation**: Automatically checks cache expiration and validity
 - **Cache management**: Methods to clear cache and get cache information
 
 ### EPG Hook (`src/hooks/useEPG.ts`)
-- Manages EPG state and download lifecycle
-- Auto-triggers download when main page loads
+- Manages EPG state and loading lifecycle
+- Auto-triggers loading when main page loads
 - Provides EPG data and status to components
 
 ### Channel Integration
@@ -47,17 +50,17 @@ This application now includes a TV guide feature that automatically downloads El
 ## Data Flow
 
 1. **Site Load** → EPG hook initializes
-2. **Auto-download** → Fetches data from epg.one
+2. **Auto-load** → Loads data from local file `/epg/epg.xml.gz`
 3. **Decompress** → Handles gzip compression
-4. **Parse XML** → Extracts channel and icon data
+4. **Parse XML** → Extracts channel information
 5. **Store Data** → Caches EPG information locally
-6. **Display Icons** → Shows channel icons in UI
-7. **Success Alert** → Notifies user of completion
+6. **Icon Matching** → Matches channel names with local icon files in `/epgone_dark_logo/` folder
+7. **Display Icons** → Shows channel icons in UI
+8. **Success Alert** → Notifies user of completion
 
 ## Error Handling
 
-- **Network errors**: Clear error messages with retry options
-- **CORS issues**: Specific handling for cross-origin restrictions
+- **File loading errors**: Clear error messages with retry options
 - **Parse failures**: Graceful fallback to default icons
 - **Image loading**: Automatic fallback to TV icon on failure
 
@@ -65,14 +68,13 @@ This application now includes a TV guide feature that automatically downloads El
 
 - **Modern browsers**: Full support with Compression API
 - **Fallback support**: Text-based parsing for older browsers
-- **CORS handling**: Proper error messages for security restrictions
 
 ## Usage
 
 The TV guide feature works automatically - no user interaction required:
 
 1. Open the application
-2. EPG download starts automatically
+2. EPG loading starts automatically from local file
 3. Status is shown below the main header
 4. Success alert appears when complete
 5. Channel icons are automatically displayed
@@ -80,13 +82,14 @@ The TV guide feature works automatically - no user interaction required:
 
 ## Configuration
 
-The EPG source URL can be modified in `src/services/epgService.ts`:
+The EPG source file path can be modified in `src/services/epgService.ts`:
 
 ```typescript
-const response = await fetch('http://epg.one/epg.xml.gz', {
-  mode: 'cors',
+const response = await fetch('/epg/epg.xml.gz', {
+  method: 'GET',
   headers: {
     'Accept': 'application/xml, application/gzip, */*',
+    'Origin': 'null'
   }
 });
 ```

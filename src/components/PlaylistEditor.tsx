@@ -5,7 +5,6 @@ import { GroupSection } from './GroupSection';
 import { ChannelItem } from './ChannelItem';
 import { SearchBar } from './SearchBar';
 import { ControlPanel } from './ControlPanel';
-// GroupsFooter removed
 import { GroupsSidebar } from './GroupsSidebar';
 import { GripVertical } from 'lucide-react';
 

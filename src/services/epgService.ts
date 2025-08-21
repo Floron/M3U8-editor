@@ -1,7 +1,7 @@
 export interface EPGChannel {
   id: string;
   name: string;
-  icon?: string;
+  //icon?: string;
 }
 
 export interface EPGData {
@@ -20,9 +20,9 @@ class EPGService {
     this.epgData = this.getCachedEPG();
   }
 
-  async downloadEPG(forceRefresh: boolean = false): Promise<EPGData> {
+  async loadEPG(forceRefresh: boolean = false): Promise<EPGData> {
     if (this.isLoading) {
-      throw new Error('EPG download already in progress');
+      throw new Error('EPG loading already in progress');
     }
 
     // Check cache first if not forcing refresh
@@ -38,12 +38,11 @@ class EPGService {
     this.isLoading = true;
 
     try {
-      console.log('Starting EPG download from http://epg.one/epg.xml.gz');
+      console.log('Loading EPG from local file /epg/epg.xml.gz');
       
-      // Download the gzipped EPG file
-      // https://cors-anywhere.herokuapp.com/http://ru.epg.one/epg.xml.gz
-      const response = await fetch('http://ru.epg.one/epg.xml.gz', {
-        mode: 'cors',
+      // Load the local gzipped EPG file
+      const response = await fetch('/epg/epg.xml.gz', {
+        method: 'GET',
         headers: {
           'Accept': 'application/xml, application/gzip, */*',
           'Origin': 'null'
@@ -51,13 +50,13 @@ class EPGService {
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to download EPG: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to load EPG: ${response.status} ${response.statusText}`);
       }
 
       // Get the compressed data
       const compressedData = await response.arrayBuffer();
       
-      // Decompress using pako (we'll need to install this)
+      // Decompress the gzipped data
       const decompressedData = await this.decompressGzip(compressedData);
       
       // Parse the XML
@@ -75,17 +74,11 @@ class EPGService {
       // Cache the new data
       this.cacheEPG(this.epgData);
 
-      console.log(`EPG download completed. Found ${channels.length} channels.`);
+      console.log(`EPG loading completed. Found ${channels.length} channels.`);
       return this.epgData;
 
     } catch (error) {
-      console.error('EPG download failed:', error);
-      
-      // Handle CORS errors specifically
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('CORS error: Cannot download EPG from epg.one. This is likely due to browser security restrictions.');
-      }
-      
+      console.error('EPG loading failed:', error);
       throw error;
     } finally {
       this.isLoading = false;
@@ -93,8 +86,6 @@ class EPGService {
   }
 
   private async decompressGzip(compressedData: ArrayBuffer): Promise<string> {
-    // For now, we'll use a simple approach
-    // In a real implementation, you'd want to use pako or similar library
     try {
       // Try to use the Compression API if available
       if ('CompressionStream' in window) {
@@ -126,53 +117,24 @@ class EPGService {
       channelElements.forEach((element, index) => {
         const name = element.getAttribute('display-name') || 
                     element.textContent?.trim();
-        const icon = element.getAttribute('icon') || 
-                    element.querySelector('icon')?.getAttribute('src') ||
-                    element.querySelector('icon')?.textContent?.trim() ||
-                    undefined;
+        //const icon = element.getAttribute('icon') || 
+        //            element.querySelector('icon')?.getAttribute('src') ||
+        //            element.querySelector('icon')?.textContent?.trim() ||
+        //            undefined;
         
-        //console.log(`Found ${name} channel. Icon: ${icon}.`);
-
         if (name) {
           channels.push({
             id: `epg-${index}`,
             name: name.trim(),
-            icon: icon || undefined
+            //icon: icon || undefined
           });
         }
-        
       });
-
-      
-/*
-      // If no channels found with standard selectors, try alternative approaches
-      if (channels.length === 0) {
-        const allElements = xmlDoc.querySelectorAll('*');
-        allElements.forEach((element, index) => {
-          const name = element.getAttribute('name') || 
-                      element.getAttribute('id') || 
-                      element.textContent?.trim();
-          
-          if (name && name.length > 2 && name.length < 100) {
-            channels.push({
-              id: `epg-alt-${index}`,
-              name: name.trim(),
-              icon: undefined
-            });
-          }
-        });
-      }
-      */
 
     } catch (error) {
       console.error('Error extracting channels from XML:', error);
     }
 
-    /*
-      channels.forEach(channel => {
-        console.log(`Id: ${channel.id}. Channel: ${channel.name}. Icon: ${channel.icon}.`);
-      });
-    */
     return channels;
   }
 
@@ -180,18 +142,9 @@ class EPGService {
     return this.epgData;
   }
 
-  findChannelIcon(channelName: string): string | undefined {
-    if (!this.epgData) return undefined;
     
-    // Try to find a matching channel by name
-    const channel = this.epgData.channels.find(ch => 
-      ch.name.toLowerCase().includes(channelName.toLowerCase()) 
-      //||
-      //channelName.toLowerCase().includes(ch.name.toLowerCase())
-    );
-    
-    return channel?.icon;
-  }
+
+ 
 
   isDownloading(): boolean {
     return this.isLoading;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { epgService, EPGData } from '@/services/epgService';
+import { iconsService } from '@/services/iconsService';
 
 export const useEPG = () => {
   const [epgData, setEpgData] = useState<EPGData | null>(null);
@@ -8,31 +9,31 @@ export const useEPG = () => {
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [cacheInfo, setCacheInfo] = useState(epgService.getCacheInfo());
 
-  const downloadEPG = async (forceRefresh: boolean = false) => {
+  const loadEPG = async (forceRefresh: boolean = false) => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const data = await epgService.downloadEPG(forceRefresh);
+      const data = await epgService.loadEPG(forceRefresh);
       setEpgData(data);
       setIsDownloaded(true);
       setCacheInfo(epgService.getCacheInfo());
       
-      // Show success alert only for fresh downloads
+      // Show success alert only for fresh loads
       if (forceRefresh || !cacheInfo.hasCache) {
         alert('TV программа успешно загружена!');
       }
       
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to download TV guide';
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load TV guide';
       setError(errorMessage);
-      console.error('EPG download error:', err);
+      console.error('EPG loading error:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const forceRefresh = () => downloadEPG(true);
+  const forceRefresh = () => loadEPG(true);
   const clearCache = () => {
     epgService.clearCache();
     setCacheInfo(epgService.getCacheInfo());
@@ -41,13 +42,13 @@ export const useEPG = () => {
   };
 
   const findChannelIcon = (channelName: string): string | undefined => {
-    return epgService.findChannelIcon(channelName);
+    return iconsService.findChannelIcon(channelName);
   };
 
   useEffect(() => {
-    // Auto-download EPG when the hook is first used
+    // Auto-load EPG when the hook is first used
     if (!epgData && !isLoading && !isDownloaded) {
-      downloadEPG();
+      loadEPG();
     }
   }, []);
 
@@ -57,7 +58,7 @@ export const useEPG = () => {
     error,
     isDownloaded,
     cacheInfo,
-    downloadEPG,
+    loadEPG,
     forceRefresh,
     clearCache,
     findChannelIcon

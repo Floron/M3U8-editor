@@ -39,12 +39,12 @@ const Index = () => {
           
           {/* EPG Status Indicator */}
           <div className="mt-4 text-center text-sm space-y-2">
-            {epgLoading && (
-              <div className="text-blue-600 flex items-center justify-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                Загружаю TV программу из http://epg.one/epg.xml.gz ...
-              </div>
-            )}
+                             {epgLoading && (
+                   <div className="text-blue-600 flex items-center justify-center gap-2">
+                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                     Загружаю TV программу из локального файла...
+                   </div>
+                 )}
             
             {epgError && (
               <div className="text-red-600 flex items-center justify-center gap-2">
@@ -60,7 +60,7 @@ const Index = () => {
             
             {epgDownloaded && epgData && (
               <div className="text-green-600 flex items-center justify-center gap-2">
-                ✅ TV программа загружена {cacheInfo.lastUpdated?.toLocaleString('ru-RU')}. Найдено: {epgData.channels.length} каналов
+                ✅ TV программа загружена из локального файла {cacheInfo.lastUpdated?.toLocaleString('ru-RU')}. Найдено: {epgData.channels.length} каналов
                 <button 
                   onClick={() => forceRefresh()} 
                   className="text-xs bg-green-100 hover:bg-green-200 px-2 py-1 rounded"

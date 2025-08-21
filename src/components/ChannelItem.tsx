@@ -15,7 +15,7 @@ interface ChannelItemProps {
 
 export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }: ChannelItemProps) => {
   const { findChannelIcon } = useEPG();
-  // Use channel icon from playlist data first, then fallback to EPG lookup
+  // Use channel icon from playlist data first, then fallback to local icon lookup
   const channelIcon = channel.icon || findChannelIcon(channel.name);
   
   const {
@@ -69,7 +69,7 @@ export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }
         {channelIcon ? (
           <>
             <img 
-              src={channelIcon} 
+              src={channelIcon}
               alt={channel.name}
               className="w-full h-full object-cover"
               onError={(e) => {
