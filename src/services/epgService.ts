@@ -41,7 +41,7 @@ class EPGService {
       console.log('Loading EPG from local file /epg/epg.xml.gz');
       
       // Load the local gzipped EPG file
-      const response = await fetch('/epg/epg.xml.gz', {
+      const response = await fetch('./epg.xml.gz', {
         method: 'GET',
         headers: {
           'Accept': 'application/xml, application/gzip, */*',
