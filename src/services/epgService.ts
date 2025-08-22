@@ -38,10 +38,10 @@ class EPGService {
     this.isLoading = true;
 
     try {
-      console.log('Loading EPG from local file /epg/epg.xml.gz');
+      console.log('Loading EPG from local file /public/epg.xml.gz');
       
       // Load the local gzipped EPG file
-      const response = await fetch('./epg.xml.gz', {
+      const response = await fetch(`./epg.xml.gz`, {
         method: 'GET',
         headers: {
           'Accept': 'application/xml, application/gzip, */*',
@@ -101,7 +101,7 @@ class EPGService {
       return decoder.decode(compressedData);
       
     } catch (error) {
-      console.warn('Gzip decompression failed, trying as plain text:', error);
+      console.log('Gzip decompression failed, trying as plain text:', error);
       const decoder = new TextDecoder();
       return decoder.decode(compressedData);
     }
@@ -142,9 +142,6 @@ class EPGService {
     return this.epgData;
   }
 
-    
-
- 
 
   isDownloading(): boolean {
     return this.isLoading;
