@@ -1,7 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trash2, GripVertical, Tv } from 'lucide-react';
+import { Trash2, GripVertical, Tv, Clock } from 'lucide-react';
 import { Channel } from '@/types/playlist';
 import { cn } from '@/lib/utils';
 import { useEPG } from '@/hooks/useEPG';
@@ -14,9 +14,32 @@ interface ChannelItemProps {
 }
 
 export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }: ChannelItemProps) => {
-  const { findChannelIcon } = useEPG();
+  const { findChannelIcon, getChannelEPGByName } = useEPG();
   // Use channel icon from playlist data first, then fallback to local icon lookup
   const channelIcon = channel.icon || findChannelIcon(channel.name);
+  
+  // Get EPG data for this channel by name
+  const epgData = getChannelEPGByName(channel.name);
+  
+  // Debug logging
+  if (epgData?.currentProgram) {
+    console.log(`Channel "${channel.name}" has current program:`, epgData.currentProgram.title);
+  }
+
+  // Helper function to format time safely
+  const formatTime = (time: Date | string): string => {
+    try {
+      const date = time instanceof Date ? time : new Date(time);
+      return date.toLocaleTimeString('ru-RU', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return '--:--';
+    }
+  };
   
   const {
     attributes,
@@ -88,6 +111,15 @@ export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }
 
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm truncate">{channel.name}</div>
+        {epgData?.currentProgram && (
+          <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            <span>
+              {epgData.currentProgram.title + '   '} 
+              ({formatTime(epgData.currentProgram.start)} - {formatTime(epgData.currentProgram.end)})
+            </span>
+          </div>
+        )}
       </div>
 
       <Button

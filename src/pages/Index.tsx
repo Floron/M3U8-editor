@@ -8,6 +8,7 @@ import { useEPG } from '@/hooks/useEPG';
 
 const Index = () => {
   const [playlistData, setPlaylistData] = useState<PlaylistData | null>(null);
+  const [isProcessingPlaylist, setIsProcessingPlaylist] = useState(false);
   
   // Initialize EPG service - will auto-download when page loads
   const { 
@@ -19,6 +20,16 @@ const Index = () => {
     forceRefresh,
     clearCache
   } = useEPG();
+
+  const handlePlaylistLoad = async (data: PlaylistData) => {
+    setIsProcessingPlaylist(true);
+    
+    // Simulate processing time and add EPG data matching
+    setTimeout(() => {
+      setPlaylistData(data);
+      setIsProcessingPlaylist(false);
+    }, 1500); // 1.5 seconds processing time
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -93,12 +104,21 @@ const Index = () => {
         </header>
 
         <div className="space-y-6">
-          {!playlistData ? (
+          {!playlistData && !isProcessingPlaylist ? (
             <div className="text-center py-12">
-              <FileUpload onPlaylistLoad={setPlaylistData} />
+              <FileUpload onPlaylistLoad={handlePlaylistLoad} />
               <p className="text-sm text-muted-foreground mt-4">
                 Загрузите M3U8 файл для начала редактирования
               </p>
+            </div>
+          ) : isProcessingPlaylist ? (
+            <div className="text-center py-12">
+              <div className="flex flex-col items-center gap-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <p className="text-lg font-medium text-muted-foreground">
+                  Плейлист обрабатывается. Пожалуйста подождите...
+                </p>
+              </div>
             </div>
           ) : (
             <>
@@ -107,7 +127,7 @@ const Index = () => {
                   Плейлист загружен • {playlistData.groups.reduce((acc, group) => acc + group.channels.length, 0)} каналов
                 </h2>
                 <div className="flex gap-3">
-                  <FileUpload onPlaylistLoad={setPlaylistData} />
+                  <FileUpload onPlaylistLoad={handlePlaylistLoad} />
                   <ExportButton data={playlistData} />
                 </div>
               </div>

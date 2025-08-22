@@ -45,6 +45,14 @@ export const useEPG = () => {
     return iconsService.findChannelIcon(channelName);
   };
 
+  const getChannelEPG = (channelId: string) => {
+    return epgService.getChannelEPG(channelId);
+  };
+
+  const getChannelEPGByName = (channelName: string) => {
+    return epgService.getChannelEPGByName(channelName);
+  };
+
   useEffect(() => {
     // Auto-load EPG when the hook is first used
     if (!epgData && !isLoading && !isDownloaded) {
@@ -61,6 +69,8 @@ export const useEPG = () => {
     loadEPG,
     forceRefresh,
     clearCache,
-    findChannelIcon
+    findChannelIcon,
+    getChannelEPG,
+    getChannelEPGByName
   };
 };

@@ -1,7 +1,14 @@
+export interface EPGProgram {
+  title: string;
+  start: Date;
+  end: Date;
+}
+
 export interface EPGChannel {
   id: string;
   name: string;
-  //icon?: string;
+  currentProgram?: EPGProgram;
+  nextProgram?: EPGProgram;
 }
 
 export interface EPGData {
@@ -66,10 +73,17 @@ class EPGService {
       // Extract channel information
       const channels = this.extractChannelsFromXML(xmlDoc);
       
+      // Extract and assign program information to channels
+      this.assignProgramsToChannels(xmlDoc, channels);
+      
       this.epgData = {
         channels,
         lastUpdated: new Date()
       };
+
+      console.log('Loaded EPG channels:', channels.map(c => ({ id: c.id, name: c.name, currentProgram: c.currentProgram?.title })));
+
+     
 
       // Cache the new data
       this.cacheEPG(this.epgData);
@@ -113,10 +127,12 @@ class EPGService {
     try {
       // Look for channel elements in the XML
       const channelElements = xmlDoc.querySelectorAll('channel');
-      
+    
+
       channelElements.forEach((element, index) => {
         const name = element.getAttribute('display-name') || 
                     element.textContent?.trim();
+        const channelId = element.getAttribute('id');
         //const icon = element.getAttribute('icon') || 
         //            element.querySelector('icon')?.getAttribute('src') ||
         //            element.querySelector('icon')?.textContent?.trim() ||
@@ -124,9 +140,8 @@ class EPGService {
         
         if (name) {
           channels.push({
-            id: `epg-${index}`,
-            name: name.trim(),
-            //icon: icon || undefined
+            id: channelId,
+            name: name.trim()
           });
         }
       });
@@ -138,8 +153,128 @@ class EPGService {
     return channels;
   }
 
+  private assignProgramsToChannels(xmlDoc: Document, channels: EPGChannel[]): void {
+    try {
+      const now = new Date();
+      console.log('Current time for EPG matching:', now.toLocaleString());
+      const programmeElements = xmlDoc.querySelectorAll('programme');
+      console.log(`Found ${programmeElements.length} program entries`);
+      
+      programmeElements.forEach((element) => {
+        const channelId = element.getAttribute('channel');
+        if (!channelId) return;
+        
+        const channel = channels.find(c => c.id === channelId);
+        if (!channel) return;
+        
+        const startStr = element.getAttribute('start');
+        const stopStr = element.getAttribute('stop');
+        
+        if (!startStr || !stopStr) return;
+        
+        const start = this.parseEPGDateTime(startStr);
+        const end = this.parseEPGDateTime(stopStr);
+        
+        if (!start || !end) return;
+        
+        const title = element.querySelector('title')?.textContent?.trim();
+        
+        if (!title) return;
+        
+        const program: EPGProgram = {
+          title,
+          start,
+          end
+        };
+        
+        // Assign current or next program based on time
+        if (start <= now && end > now) {
+          channel.currentProgram = program;
+          console.log(`Current program for ${channel.name}: ${program.title} (${start.toLocaleString()} - ${end.toLocaleString()})`);
+        } else if (start > now && !channel.nextProgram) {
+          channel.nextProgram = program;
+          console.log(`Next program for ${channel.name}: ${program.title} (${start.toLocaleString()} - ${end.toLocaleString()})`);
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error assigning programs to channels:', error);
+    }
+  }
+
+  private parseEPGDateTime(dateTimeStr: string): Date | null {
+    try {
+      // Parse EPG datetime format: "20250821031000 +0300"
+      const year = parseInt(dateTimeStr.substring(0, 4));
+      const month = parseInt(dateTimeStr.substring(4, 6)) - 1; // Month is 0-indexed
+      const day = parseInt(dateTimeStr.substring(6, 8));
+      const hour = parseInt(dateTimeStr.substring(8, 10));
+      const minute = parseInt(dateTimeStr.substring(10, 12));
+      const second = parseInt(dateTimeStr.substring(12, 14));
+      
+      // Extract timezone offset if present
+      const timezoneOffset = dateTimeStr.substring(15);
+      let date: Date;
+      
+      if (timezoneOffset) {
+        // Create date with timezone offset
+        const offsetHours = parseInt(timezoneOffset.substring(1, 3));
+        const offsetMinutes = parseInt(timezoneOffset.substring(3, 5));
+        const offsetSign = timezoneOffset.charAt(0);
+        
+        // Create date in UTC
+        date = new Date(Date.UTC(year, month, day, hour, minute, second));
+        
+        // Adjust for timezone offset
+        const offsetMs = (offsetHours * 60 + offsetMinutes) * 60 * 1000;
+        if (offsetSign === '+') {
+          date.setTime(date.getTime() - offsetMs);
+        } else {
+          date.setTime(date.getTime() + offsetMs);
+        }
+      } else {
+        // No timezone offset, assume local time
+        date = new Date(year, month, day, hour, minute, second);
+      }
+      
+      return date;
+    } catch (error) {
+      console.error('Error parsing EPG datetime:', dateTimeStr, error);
+      return null;
+    }
+  }
+
   getEPGData(): EPGData | null {
     return this.epgData;
+  }
+
+  getChannelEPG(channelId: string): EPGChannel | null {
+    if (!this.epgData) return null;
+    return this.epgData.channels.find(channel => channel.id === channelId) || null;
+  }
+
+  getChannelEPGByName(channelName: string): EPGChannel | null {
+    if (!this.epgData) return null;
+    
+    // Try exact match first
+    let found = this.epgData.channels.find(channel => 
+      channel.name === channelName
+    );
+    
+    // If not found, try partial match
+    if (!found) {
+      found = this.epgData.channels.find(channel => 
+        channel.name.includes(channelName) 
+        //||        channelName.includes(channel.name)
+      );
+    }
+    
+    if (found) {
+      console.log(`Found EPG for channel "${channelName}" (matched with "${found.name}"):`, found);
+    } else {
+      console.log(`No EPG found for channel "${channelName}"`);
+    }
+    return found || null;
   }
 
 
@@ -162,9 +297,24 @@ class EPGService {
         return null;
       }
 
+      // Restore Date objects for program data
+      const channels = parsed.channels.map((channel: any) => ({
+        ...channel,
+        currentProgram: channel.currentProgram ? {
+          ...channel.currentProgram,
+          start: new Date(channel.currentProgram.start),
+          end: new Date(channel.currentProgram.end)
+        } : undefined,
+        nextProgram: channel.nextProgram ? {
+          ...channel.nextProgram,
+          start: new Date(channel.nextProgram.start),
+          end: new Date(channel.nextProgram.end)
+        } : undefined
+      }));
+
       console.log('Found valid cached EPG data');
       return {
-        ...parsed,
+        channels,
         lastUpdated
       };
     } catch (error) {

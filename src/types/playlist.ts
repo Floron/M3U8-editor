@@ -6,6 +6,24 @@ export interface Channel {
   tvgRec?: string;
   selected?: boolean;
   icon?: string;
+  epg?: {
+    currentProgram?: {
+      title: string;
+      description?: string;
+      category?: string;
+      rating?: string;
+      start: Date;
+      end: Date;
+    };
+    nextProgram?: {
+      title: string;
+      description?: string;
+      category?: string;
+      rating?: string;
+      start: Date;
+      end: Date;
+    };
+  };
 }
 
 export interface Group {
