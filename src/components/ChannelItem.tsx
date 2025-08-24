@@ -5,6 +5,7 @@ import { Trash2, GripVertical, Tv, Clock } from 'lucide-react';
 import { Channel } from '@/types/playlist';
 import { cn } from '@/lib/utils';
 import { useEPG } from '@/hooks/useEPG';
+import React, { useMemo, useCallback } from 'react';
 
 interface ChannelItemProps {
   channel: Channel;
@@ -13,21 +14,17 @@ interface ChannelItemProps {
   isDragging?: boolean;
 }
 
-export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }: ChannelItemProps) => {
+export const ChannelItem = React.memo(({ channel, onDelete, onToggleSelection, isDragging }: ChannelItemProps) => {
   const { findChannelIcon, getChannelEPGByName } = useEPG();
 
-  // Use channel icon from playlist data first, then fallback to local icon lookup
-  const channelIcon = channel.icon || findChannelIcon(channel.name);
+  // Memoize channel icon lookup
+  const channelIcon = useMemo(() => findChannelIcon(channel.name), [findChannelIcon, channel.name]);
   
-  // Get EPG data for this channel by name
-  const epgData = getChannelEPGByName(channel.name);
-  // Debug logging
-  //if (epgData?.currentProgram) {
-  //  console.log(`Channel "${channel.name}" with ID: "${channel.id}" has current program:`, epgData.currentProgram.title);
-  //}
+  // Memoize EPG data lookup
+  const epgData = useMemo(() => getChannelEPGByName(channel.name), [getChannelEPGByName, channel.name]);
 
-  // Helper function to format time safely
-  const formatTime = (time: Date | string): string => {
+  // Memoize time formatting function
+  const formatTime = useCallback((time: Date | string): string => {
     try {
       const date = time instanceof Date ? time : new Date(time);
       return date.toLocaleTimeString('ru-RU', { 
@@ -39,7 +36,7 @@ export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }
       console.error('Error formatting time:', error);
       return '--:--';
     }
-  };
+  }, []);
   
   const {
     attributes,
@@ -53,26 +50,50 @@ export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }
 
   const { isOver, setNodeRef: setDroppableNodeRef } = useDroppable({ id: channel.id });
 
-  const setNodeRef = (node: HTMLElement | null) => {
+  const setNodeRef = useCallback((node: HTMLElement | null) => {
     setDraggableNodeRef(node);
     setDroppableNodeRef(node);
-  };
+  }, [setDraggableNodeRef, setDroppableNodeRef]);
 
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined;
+  // Memoize transform style
+  const style = useMemo(() => {
+    return transform ? {
+      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    } : undefined;
+  }, [transform]);
+
+  // Memoize className
+  const className = useMemo(() => {
+    return cn(
+      "channel-item flex items-center gap-3 p-3 rounded-lg border bg-card",
+      isDragging && "opacity-50",
+      isDraggingActive && "z-50 shadow-lg",
+      isOver && "drag-over",
+      channel.selected && "border-primary bg-primary/5"
+    );
+  }, [isDragging, isDraggingActive, isOver, channel.selected]);
+
+  // Memoize event handlers
+  const handleToggleSelection = useCallback(() => {
+    onToggleSelection(channel.id);
+  }, [onToggleSelection, channel.id]);
+
+  const handleDelete = useCallback(() => {
+    onDelete(channel.id);
+  }, [onDelete, channel.id]);
+
+  const handleImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    // Fallback to TV icon if image fails to load
+    const target = e.target as HTMLImageElement;
+    target.style.display = 'none';
+    target.nextElementSibling?.classList.remove('hidden');
+  }, []);
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={cn(
-        "channel-item flex items-center gap-3 p-3 rounded-lg border bg-card",
-        isDragging && "opacity-50",
-        isDraggingActive && "z-50 shadow-lg",
-        isOver && "drag-over",
-        channel.selected && "border-primary bg-primary/5"
-      )}
+      className={className}
     >
       <div
         {...attributes}
@@ -84,7 +105,7 @@ export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }
 
       <Checkbox
         checked={channel.selected}
-        onCheckedChange={() => onToggleSelection(channel.id)}
+        onCheckedChange={handleToggleSelection}
       />
 
       {/* Channel Image/Icon */}
@@ -95,12 +116,7 @@ export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }
               src={channelIcon}
               alt={channel.name}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                // Fallback to TV icon if image fails to load
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                target.nextElementSibling?.classList.remove('hidden');
-              }}
+              onError={handleImageError}
             />
             <Tv className="w-4 h-4 text-muted-foreground hidden" />
           </>
@@ -125,11 +141,13 @@ export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }
       <Button
         size="sm"
         variant="ghost"
-        onClick={() => onDelete(channel.id)}
+        onClick={handleDelete}
         className="text-destructive hover:text-destructive hover:bg-destructive/10 p-1 h-auto"
       >
         <Trash2 className="w-4 h-4" />
       </Button>
     </div>
   );
-};
+});
+
+ChannelItem.displayName = 'ChannelItem';

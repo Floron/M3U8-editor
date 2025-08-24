@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { epgService, EPGData } from '@/services/epgService';
 import { iconsService } from '@/services/iconsService';
 
@@ -8,6 +8,27 @@ export const useEPG = () => {
   const [error, setError] = useState<string | null>(null);
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [cacheInfo, setCacheInfo] = useState(epgService.getCacheInfo());
+
+  // Memoize channel lookup map for O(1) access
+  const channelMap = useMemo(() => {
+    if (!epgData) return new Map();
+    
+    const map = new Map<string, any>();
+    epgData.channels.forEach(channel => {
+      // Store by exact name
+      map.set(channel.name, channel);
+      
+      // Also store by lowercase for case-insensitive lookup
+      //map.set(channel.name.toLowerCase(), channel);
+    });
+    return map;
+  }, [epgData]);
+
+  // Memoize icon cache
+  const iconCache = useMemo(() => {
+    const cache = new Map<string, string>();
+    return cache;
+  }, []);
 
   const loadEPG = async (forceRefresh: boolean = false) => {
     setIsLoading(true);
@@ -41,13 +62,48 @@ export const useEPG = () => {
     setIsDownloaded(false);
   };
 
-  const findChannelIcon = (channelName: string): string | undefined => {
-    return iconsService.findChannelIcon(channelName);
-  };
+  // Optimized icon lookup with caching
+  const findChannelIcon = useCallback((channelName: string): string | undefined => {
+    if (!channelName) return undefined;
+    
+    // Check cache first
+    if (iconCache.has(channelName)) {
+      return iconCache.get(channelName);
+    }
+    
+    // Get icon path
+    const iconPath = iconsService.findChannelIcon(channelName);
+    
+    // Cache the result
+    iconCache.set(channelName, iconPath);
+    
+    return iconPath;
+  }, [iconCache]);
 
-  const getChannelEPGByName = (channelName: string) => {
-    return epgService.getChannelEPGByName(channelName);
-  };
+  // Optimized EPG lookup with memoized map
+  const getChannelEPGByName = useCallback((channelName: string) => {
+    if (!channelName || !channelMap.size) return null;
+    
+    // Try exact match first
+    let found = channelMap.get(channelName);
+    
+    // If not found, try case-insensitive match
+   // if (!found) {
+   //   found = channelMap.get(channelName.toLowerCase());
+   // }
+    
+    // If still not found, try partial match (fallback)
+    if (!found) {
+      for (const [key, channel] of channelMap.entries()) {
+        if (channel.name.includes(channelName) || channelName.includes(channel.name)) {
+          found = channel;
+          break;
+        }
+      }
+    }
+    
+    return found || null;
+  }, [channelMap]);
 
   useEffect(() => {
     // Auto-load EPG when the hook is first used

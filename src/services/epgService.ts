@@ -20,10 +20,25 @@ class EPGService {
   private isLoading = false;
   private readonly CACHE_KEY = 'epg_data_cache';
   private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  private channelNameMap: Map<string, EPGChannel> = new Map();
 
   constructor() {
     // Try to load cached data on initialization
     this.epgData = this.getCachedEPG();
+    this.buildChannelNameMap();
+  }
+
+  private buildChannelNameMap(): void {
+    if (!this.epgData) return;
+    
+    this.channelNameMap.clear();
+    this.epgData.channels.forEach(channel => {
+      // Store by exact name
+      this.channelNameMap.set(channel.name, channel);
+      
+      // Store by lowercase for case-insensitive lookup
+      //this.channelNameMap.set(channel.name.toLowerCase(), channel);
+    });
   }
 
   async loadEPG(forceRefresh: boolean = false): Promise<EPGData> {
@@ -35,8 +50,8 @@ class EPGService {
     if (!forceRefresh) {
       const cachedData = this.getCachedEPG();
       if (cachedData) {
-        console.log('Using cached EPG data');
         this.epgData = cachedData;
+        this.buildChannelNameMap();
         return cachedData;
       }
     }
@@ -44,8 +59,6 @@ class EPGService {
     this.isLoading = true;
 
     try {
-      console.log('Loading EPG from local file /public/epg.xml.gz');
-      
       // Load the local gzipped EPG file
       const response = await fetch(`./epg.xml.gz`, {
         method: 'GET',
@@ -80,14 +93,12 @@ class EPGService {
         lastUpdated: new Date()
       };
 
-      //console.log('class EPGService. 1.1 Loaded EPG channels:', channels.map(c => ({ id: c.id, name: c.name, currentProgram: c.currentProgram?.title })));
-
-     
+      // Build the channel name map for fast lookups
+      this.buildChannelNameMap();
 
       // Cache the new data
       this.cacheEPG(this.epgData);
 
-      console.log(`EPG loading completed. Found ${channels.length} channels.`);
       return this.epgData;
 
     } catch (error) {
@@ -114,7 +125,6 @@ class EPGService {
       return decoder.decode(compressedData);
       
     } catch (error) {
-      console.log('Gzip decompression failed, trying as plain text:', error);
       const decoder = new TextDecoder();
       return decoder.decode(compressedData);
     }
@@ -126,19 +136,15 @@ class EPGService {
     try {
       // Look for channel elements in the XML
       const channelElements = xmlDoc.querySelectorAll('channel');
-    
 
       channelElements.forEach((element, index) => {
         const channelId = element.getAttribute('id');
         const name = element.getAttribute('display-name') || 
                     element.textContent?.trim();
-        
 
-        //console.log(`1.2 found channels: ${channelId} ${name}`);
         const currChannel = channels.find(c => c.id === channelId);
         if (currChannel) {
           currChannel.name = currChannel.name + `\n` + name;
-         // console.log(`Found channels with same id: ${currChannel.id} ${currChannel.name}`);
         } else {
           channels.push({
             id: channelId,
@@ -157,9 +163,7 @@ class EPGService {
   private assignProgramsToChannels(xmlDoc: Document, channels: EPGChannel[]): void {
     try {
       const now = new Date();
-      console.log('Current time for EPG matching:', now.toLocaleString());
       const programmeElements = xmlDoc.querySelectorAll('programme');
-      console.log(`Found ${programmeElements.length} program entries`);
       
       programmeElements.forEach((element) => {
         const channelId = element.getAttribute('channel');
@@ -178,10 +182,8 @@ class EPGService {
         
         if (!start || !end) return;
         
-        
         // Assign current program based on time
         if (start <= now && end > now) {
-
           const title = element.querySelector('title')?.textContent?.trim();
         
           if (!title) return;
@@ -193,7 +195,6 @@ class EPGService {
           };
 
           channel.currentProgram = program;
-          //console.log(`1.3 Current program for ${channel.id} ${channel.name}: ${program.title} (${start.toLocaleString()} - ${end.toLocaleString()})`);
         }
       });
       
@@ -249,26 +250,28 @@ class EPGService {
   }
 
   getChannelEPGByName(channelName: string): EPGChannel | null {
-    if (!this.epgData) return null;
+    if (!this.epgData || !channelName) return null;
     
-    // Try exact match first
-    let found = this.epgData.channels.find(channel => 
-      channel.name === channelName
-    );
+    // Try exact match first using the optimized map
+    let found = this.channelNameMap.get(channelName);
     
-    // If not found, try partial match
+    // If not found, try case-insensitive match
+   // if (!found) {
+   //   found = this.channelNameMap.get(channelName.toLowerCase());
+   // }
+    
+    // If still not found, try partial match (fallback)
     if (!found) {
-      found = this.epgData.channels.find(channel => channel.name.includes(channelName) );
+      for (const [key, channel] of this.channelNameMap.entries()) {
+        if (channel.name.includes(channelName) || channelName.includes(channel.name)) {
+          found = channel;
+          break;
+        }
+      }
     }
     
-    if (found) {
-      console.log(`Found EPG for channel "${channelName}":`, found.currentProgram?.title || `not found`);
-    } else {
-      console.log(`No EPG found for channel "${channelName}"`);
-    }
     return found || null;
   }
-
 
   isDownloading(): boolean {
     return this.isLoading;
@@ -284,7 +287,6 @@ class EPGService {
       
       // Check if cache is still valid
       if (Date.now() - lastUpdated.getTime() > this.CACHE_DURATION) {
-        console.log('EPG cache expired, removing old data');
         localStorage.removeItem(this.CACHE_KEY);
         return null;
       }
@@ -304,7 +306,6 @@ class EPGService {
         } : undefined
       }));
 
-      console.log('Found valid cached EPG data');
       return {
         channels,
         lastUpdated
@@ -323,7 +324,6 @@ class EPGService {
         lastUpdated: data.lastUpdated.toISOString()
       };
       localStorage.setItem(this.CACHE_KEY, JSON.stringify(cacheData));
-      console.log('EPG data cached successfully');
     } catch (error) {
       console.warn('Failed to cache EPG data:', error);
     }
@@ -332,7 +332,7 @@ class EPGService {
   clearCache(): void {
     try {
       localStorage.removeItem(this.CACHE_KEY);
-      console.log('EPG cache cleared');
+      this.channelNameMap.clear();
     } catch (error) {
       console.warn('Failed to clear EPG cache:', error);
     }

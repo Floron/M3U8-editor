@@ -3,18 +3,27 @@ import { Group } from '@/types/playlist';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { GripVertical } from 'lucide-react';
+import React, { useCallback } from 'react';
 
 interface GroupsSidebarProps {
   groups: Group[];
   onSelect: (groupId: string) => void;
 }
 
-function SidebarGroupItem({ group, onSelect }: { group: Group; onSelect: (id: string) => void }) {
+const SidebarGroupItem = React.memo(({ group, onSelect }: { group: Group; onSelect: (id: string) => void }) => {
   const { isOver, setNodeRef: setDropRef } = useDroppable({ id: `group-${group.id}` });
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ 
     id: `group-${group.id}`,
     data: { type: 'group', group }
   });
+
+  const handleSelect = useCallback(() => {
+    onSelect(group.id);
+  }, [onSelect, group.id]);
+
+  const handleDragClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
 
   return (
     <div 
@@ -30,7 +39,7 @@ function SidebarGroupItem({ group, onSelect }: { group: Group; onSelect: (id: st
           "w-full justify-between h-9 pr-2",
           isDragging && "bg-transparent hover:bg-transparent"
         )}
-        onClick={() => onSelect(group.id)}
+        onClick={handleSelect}
       >
         <div className="flex items-center gap-2">
           <div
@@ -38,7 +47,7 @@ function SidebarGroupItem({ group, onSelect }: { group: Group; onSelect: (id: st
             {...attributes}
             {...listeners}
             className="cursor-grab active:cursor-grabbing p-1 hover:bg-accent rounded"
-            onClick={(e) => e.stopPropagation()}
+            onClick={handleDragClick}
           >
             <GripVertical className="w-3 h-3 text-muted-foreground" />
           </div>
@@ -48,11 +57,11 @@ function SidebarGroupItem({ group, onSelect }: { group: Group; onSelect: (id: st
       </Button>
     </div>
   );
-}
+});
 
-export function GroupsSidebar({ groups, onSelect }: GroupsSidebarProps) {
-  console.log('GroupsSidebar render with groups:', groups.map(g => ({ id: g.id, name: g.name })));
-  
+SidebarGroupItem.displayName = 'SidebarGroupItem';
+
+export const GroupsSidebar = React.memo(({ groups, onSelect }: GroupsSidebarProps) => {
   return (
     <aside className="hidden lg:block w-64 shrink-0 sticky top-6 self-start">
       <div className="rounded-lg border bg-card p-3">
@@ -67,7 +76,9 @@ export function GroupsSidebar({ groups, onSelect }: GroupsSidebarProps) {
       </div>
     </aside>
   );
-}
+});
+
+GroupsSidebar.displayName = 'GroupsSidebar';
 
 
 

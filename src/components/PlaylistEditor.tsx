@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 import { PlaylistData, Group, Channel } from '@/types/playlist';
 import { GroupSection } from './GroupSection';
@@ -6,6 +6,7 @@ import { ChannelItem } from './ChannelItem';
 import { SearchBar } from './SearchBar';
 import { ControlPanel } from './ControlPanel';
 import { GroupsSidebar } from './GroupsSidebar';
+import { PerformanceMonitor } from './PerformanceMonitor';
 import { GripVertical } from 'lucide-react';
 
 interface PlaylistEditorProps {
@@ -17,9 +18,8 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  
 
-
+  // Memoize filtered data to prevent recalculation on every render
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;
 
@@ -33,16 +33,49 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     return { groups: filteredGroups };
   }, [data, searchTerm]);
 
+  // Memoize selected channels calculation
   const selectedChannels = useMemo(() => {
     return data.groups.flatMap(group => group.channels.filter(channel => channel.selected));
   }, [data]);
 
-  const handleDragStart = (event: DragStartEvent) => {
-    console.log('Drag start event:', event.active.id, event.active.data);
-    setActiveId(event.active.id as string);
-  };
+  // Memoize channel lookup map for O(1) access
+  const channelMap = useMemo(() => {
+    const map = new Map<string, Channel>();
+    data.groups.forEach(group => {
+      group.channels.forEach(channel => {
+        map.set(channel.id, channel);
+      });
+    });
+    return map;
+  }, [data]);
 
-  const handleDragOver = (event: DragOverEvent) => {
+  // Memoize group lookup map for O(1) access
+  const groupMap = useMemo(() => {
+    const map = new Map<string, Group>();
+    data.groups.forEach(group => {
+      map.set(group.id, group);
+    });
+    return map;
+  }, [data]);
+
+  // Optimized channel finder using memoized map
+  const findChannelById = useCallback((id: string): Channel | null => {
+    return channelMap.get(id) || null;
+  }, [channelMap]);
+
+  // Optimized group finder using memoized map
+  const findGroupByChannelId = useCallback((channelId: string): Group | null => {
+    for (const group of data.groups) {
+      if (group.channels.some(ch => ch.id === channelId)) return group;
+    }
+    return null;
+  }, [data]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  }, []);
+
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
 
@@ -59,13 +92,13 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     if (!activeChannel) return;
 
     // If dragging over a group header, highlight it
-    const overGroup = data.groups.find(group => group.id === overId);
+    const overGroup = groupMap.get(overId);
     if (overGroup) {
       // Visual feedback is handled by CSS classes
     }
-  };
+  }, [findChannelById, groupMap]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
 
@@ -76,25 +109,16 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
 
     // Check if we're dragging a group (from sidebar)
     if (activeId.startsWith('group-')) {
-      console.log('Dragging group detected:', activeId);
       const sourceGroupId = activeId.replace('group-', '');
       
       // If dropping on another group in sidebar, reorder groups
       if (overId.startsWith('group-')) {
-        console.log('Dropping group on group:', overId);
         const targetGroupId = overId.replace('group-', '');
         if (sourceGroupId !== targetGroupId) {
-          console.log('Calling reorderGroups:', sourceGroupId, '->', targetGroupId);
           reorderGroups(sourceGroupId, targetGroupId);
-        } else {
-          console.log('Same group, no reordering needed');
         }
         return;
       }
-      
-      console.log('Group dropped on non-group target:', overId);
-      // If dropping on sidebar item (for channels), don't handle here
-      // Let the existing sidebar logic handle it
     }
 
     const activeChannel = findChannelById(activeId);
@@ -106,7 +130,7 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     // Dropped over groups sidebar item: move to end of that group
     if (overId.startsWith('group-')) {
       const targetGroupId = overId.replace('group-', '');
-      const targetGroup = data.groups.find(g => g.id === targetGroupId);
+      const targetGroup = groupMap.get(targetGroupId);
       if (!targetGroup) return;
       const endIndex = targetGroup.channels.filter(ch => !selectedIds.includes(ch.id)).length;
       if (isMultiDrag) {
@@ -142,24 +166,16 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     }
 
     // Dropped over a group header: move to the end of that group
-    const targetGroup = data.groups.find(group => group.id === overId);
+    const targetGroup = groupMap.get(overId);
     if (!targetGroup) return;
     if (isMultiDrag) {
       moveSelectedChannelsToGroupAtIndex(selectedIds, targetGroup.id, targetGroup.channels.filter(ch => !selectedIds.includes(ch.id)).length);
     } else {
       moveChannelToGroup(activeChannel, targetGroup.id);
     }
-  };
+  }, [findChannelById, findGroupByChannelId, groupMap]);
 
-  const findChannelById = (id: string): Channel | null => {
-    for (const group of data.groups) {
-      const channel = group.channels.find(ch => ch.id === id);
-      if (channel) return channel;
-    }
-    return null;
-  };
-
-  const moveChannelToGroup = (channel: Channel, targetGroupId: string) => {
+  const moveChannelToGroup = useCallback((channel: Channel, targetGroupId: string) => {
     const newGroups = data.groups.map(group => {
       // Remove channel from current group (not used for copy behavior)
       const filteredChannels = group.channels.filter(ch => ch.id !== channel.id);
@@ -173,9 +189,9 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     });
 
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const getSelectedChannelIds = (): string[] => {
+  const getSelectedChannelIds = useCallback((): string[] => {
     const ids: string[] = [];
     data.groups.forEach(group => {
       group.channels.forEach(channel => {
@@ -183,16 +199,9 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
       });
     });
     return ids;
-  };
+  }, [data]);
 
-  const findGroupByChannelId = (channelId: string): Group | null => {
-    for (const group of data.groups) {
-      if (group.channels.some(ch => ch.id === channelId)) return group;
-    }
-    return null;
-  };
-
-  const reorderChannelWithinGroup = (groupId: string, fromChannelId: string, toChannelId: string) => {
+  const reorderChannelWithinGroup = useCallback((groupId: string, fromChannelId: string, toChannelId: string) => {
     const newGroups = data.groups.map(group => {
       if (group.id !== groupId) return group;
       const channels = [...group.channels];
@@ -205,9 +214,9 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
       return { ...group, channels };
     });
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const moveChannelToGroupAtIndex = (channel: Channel, targetGroupId: string, targetIndex: number) => {
+  const moveChannelToGroupAtIndex = useCallback((channel: Channel, targetGroupId: string, targetIndex: number) => {
     const newGroups = data.groups.map(group => {
       const withoutChannel = group.channels.filter(ch => ch.id !== channel.id);
       if (group.id === targetGroupId) {
@@ -219,9 +228,9 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
       return { ...group, channels: withoutChannel };
     });
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const moveSelectedChannelsToGroupAtIndex = (selectedIds: string[], targetGroupId: string, targetIndex: number) => {
+  const moveSelectedChannelsToGroupAtIndex = useCallback((selectedIds: string[], targetGroupId: string, targetIndex: number) => {
     const targetGroup = data.groups.find(g => g.id === targetGroupId);
     if (!targetGroup) return;
 
@@ -246,11 +255,9 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     });
 
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  // (copy helpers removed; behavior is move)
-
-  const addNewGroup = (name: string) => {
+  const addNewGroup = useCallback((name: string) => {
     const newGroup: Group = {
       id: crypto.randomUUID(),
       name,
@@ -260,24 +267,24 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     onDataChange({
       groups: [...data.groups, newGroup]
     });
-  };
+  }, [data, onDataChange]);
 
-  const deleteGroup = (groupId: string) => {
+  const deleteGroup = useCallback((groupId: string) => {
     onDataChange({
       groups: data.groups.filter(group => group.id !== groupId)
     });
-  };
+  }, [data, onDataChange]);
 
-  const deleteChannel = (channelId: string) => {
+  const deleteChannel = useCallback((channelId: string) => {
     const newGroups = data.groups.map(group => ({
       ...group,
       channels: group.channels.filter(ch => ch.id !== channelId)
     }));
 
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const toggleChannelSelection = (channelId: string) => {
+  const toggleChannelSelection = useCallback((channelId: string) => {
     const newGroups = data.groups.map(group => ({
       ...group,
       channels: group.channels.map(channel =>
@@ -288,9 +295,9 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     }));
 
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const selectAllSearchResults = () => {
+  const selectAllSearchResults = useCallback(() => {
     const newGroups = data.groups.map(group => ({
       ...group,
       channels: group.channels.map(channel =>
@@ -301,26 +308,26 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     }));
 
     onDataChange({ groups: newGroups });
-  };
+  }, [data, searchTerm, onDataChange]);
 
-  const deleteSelectedChannels = () => {
+  const deleteSelectedChannels = useCallback(() => {
     const newGroups = data.groups.map(group => ({
       ...group,
       channels: group.channels.filter(channel => !channel.selected)
     }));
 
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const clearSelectedChannels = () => {
+  const clearSelectedChannels = useCallback(() => {
     const newGroups = data.groups.map(group => ({
       ...group,
       channels: group.channels.map(channel => ({ ...channel, selected: false }))
     }));
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const sortGroupChannels = (groupId: string) => {
+  const sortGroupChannels = useCallback((groupId: string) => {
     const newGroups = data.groups.map(group => {
       if (group.id === groupId) {
         return {
@@ -332,16 +339,16 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     });
 
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const toggleGroupCollapsed = (groupId: string) => {
+  const toggleGroupCollapsed = useCallback((groupId: string) => {
     setCollapsedGroups(prev => ({
       ...prev,
       [groupId]: !prev[groupId]
     }));
-  };
+  }, []);
 
-  const reorderGroups = (fromGroupId: string, toGroupId: string) => {
+  const reorderGroups = useCallback((fromGroupId: string, toGroupId: string) => {
     const fromIndex = data.groups.findIndex(group => group.id === fromGroupId);
     const toIndex = data.groups.findIndex(group => group.id === toGroupId);
     
@@ -353,83 +360,86 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     newGroups.splice(insertIndex, 0, moved);
     
     onDataChange({ groups: newGroups });
-  };
+  }, [data, onDataChange]);
 
-  const hasSearchResults = filteredData.groups.some(group => group.channels.length > 0);
+  const hasSearchResults = useMemo(() => 
+    filteredData.groups.some(group => group.channels.length > 0), 
+    [filteredData]
+  );
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-      {/* Centered Search Bar */}
-      <div className="flex justify-center mb-8">
-        <div className="w-full max-w-md">
-          <SearchBar
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            onSelectAll={selectAllSearchResults}
-            hasResults={hasSearchResults}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-6 lg:flex lg:items-start lg:gap-6">
-        <div className="flex-1 space-y-6">
-          <ControlPanel
-            onAddGroup={addNewGroup}
-            selectedCount={selectedChannels.length}
-            onDeleteSelected={deleteSelectedChannels}
-            onClearSelection={clearSelectedChannels}
-          />
-
-          <div className="space-y-4">
-            {filteredData.groups.map(group => (
-              <GroupSection
-                key={group.id}
-                group={group}
-                onDeleteGroup={deleteGroup}
-                onDeleteChannel={deleteChannel}
-                onToggleSelection={toggleChannelSelection}
-                onSortChannels={sortGroupChannels}
-                collapsed={!!collapsedGroups[group.id]}
-                onToggleCollapsed={toggleGroupCollapsed}
-              />
-            ))}
+    <>
+      <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+        {/* Centered Search Bar */}
+        <div className="flex justify-center mb-8">
+          <div className="w-full max-w-md">
+            <SearchBar
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              onSelectAll={selectAllSearchResults}
+              hasResults={hasSearchResults}
+            />
           </div>
         </div>
 
-        <GroupsSidebar
-          groups={data.groups}
-          onSelect={(groupId) => {
-            const el = document.getElementById(`group-${groupId}`);
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
-        />
-        
-
-
-        {/* GroupsFooter removed */}
-      </div>
-
-      <DragOverlay>
-        {activeId ? (
-          activeId.startsWith('group-') ? (
-            <div className="bg-card border rounded-lg p-3 shadow-lg">
-              <div className="flex items-center gap-2">
-                <GripVertical className="w-4 h-4 text-muted-foreground" />
-                <span className="font-medium">
-                  {data.groups.find(g => g.id === activeId.replace('group-', ''))?.name}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <ChannelItem
-              channel={findChannelById(activeId)!}
-              onDelete={() => {}}
-              onToggleSelection={() => {}}
-              isDragging
+        <div className="space-y-6 lg:flex lg:items-start lg:gap-6">
+          <div className="flex-1 space-y-6">
+            <ControlPanel
+              onAddGroup={addNewGroup}
+              selectedCount={selectedChannels.length}
+              onDeleteSelected={deleteSelectedChannels}
+              onClearSelection={clearSelectedChannels}
             />
-          )
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+
+            <div className="space-y-4">
+              {filteredData.groups.map(group => (
+                <GroupSection
+                  key={group.id}
+                  group={group}
+                  onDeleteGroup={deleteGroup}
+                  onDeleteChannel={deleteChannel}
+                  onToggleSelection={toggleChannelSelection}
+                  onSortChannels={sortGroupChannels}
+                  collapsed={!!collapsedGroups[group.id]}
+                  onToggleCollapsed={toggleGroupCollapsed}
+                />
+              ))}
+            </div>
+          </div>
+
+          <GroupsSidebar
+            groups={data.groups}
+            onSelect={(groupId) => {
+              const el = document.getElementById(`group-${groupId}`);
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
+        </div>
+
+        <DragOverlay>
+          {activeId ? (
+            activeId.startsWith('group-') ? (
+              <div className="bg-card border rounded-lg p-3 shadow-lg">
+                <div className="flex items-center gap-2">
+                  <GripVertical className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium">
+                    {data.groups.find(g => g.id === activeId.replace('group-', ''))?.name}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <ChannelItem
+                channel={findChannelById(activeId)!}
+                onDelete={() => {}}
+                onToggleSelection={() => {}}
+                isDragging
+              />
+            )
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      <PerformanceMonitor componentName="PlaylistEditor" />
+    </>
   );
 };

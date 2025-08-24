@@ -3,7 +3,9 @@ import { Button } from '@/components/ui/button';
 import { ArrowUpDown, Trash2, Plus, ChevronDown } from 'lucide-react';
 import { Group } from '@/types/playlist';
 import { ChannelItem } from './ChannelItem';
+import { VirtualizedChannelList } from './VirtualizedChannelList';
 import { cn } from '@/lib/utils';
+import React, { useCallback } from 'react';
 
 interface GroupSectionProps {
   group: Group;
@@ -15,7 +17,7 @@ interface GroupSectionProps {
   onToggleCollapsed?: (groupId: string) => void;
 }
 
-export function GroupSection({
+export const GroupSection = React.memo(({
   group,
   onDeleteGroup,
   onDeleteChannel,
@@ -23,8 +25,24 @@ export function GroupSection({
   onSortChannels,
   collapsed = false,
   onToggleCollapsed,
-}: GroupSectionProps) {
+}: GroupSectionProps) => {
   const { isOver, setNodeRef } = useDroppable({ id: group.id });
+
+  // Use virtualized list for groups with more than 30 channels (lowered threshold for better UX)
+  const useVirtualization = group.channels.length > 30;
+
+  // Memoize event handlers
+  const handleToggleCollapsed = useCallback(() => {
+    onToggleCollapsed?.(group.id);
+  }, [onToggleCollapsed, group.id]);
+
+  const handleSortChannels = useCallback(() => {
+    onSortChannels(group.id);
+  }, [onSortChannels, group.id]);
+
+  const handleDeleteGroup = useCallback(() => {
+    onDeleteGroup(group.id);
+  }, [onDeleteGroup, group.id]);
 
   return (
     <div className="space-y-2" id={`group-${group.id}`}>
@@ -38,7 +56,7 @@ export function GroupSection({
               size="icon"
               variant="ghost"
               className={cn('h-8 w-8 transition-transform', collapsed && 'rotate-[-90deg]')}
-              onClick={() => onToggleCollapsed?.(group.id)}
+              onClick={handleToggleCollapsed}
               aria-label={collapsed ? 'Развернуть группу' : 'Свернуть группу'}
             >
               <ChevronDown className="w-4 h-4" />
@@ -48,7 +66,7 @@ export function GroupSection({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => onSortChannels(group.id)} className="h-8">
+            <Button size="sm" variant="outline" onClick={handleSortChannels} className="h-8">
               <ArrowUpDown className="w-4 h-4 mr-1" />
               Сортировать
             </Button>
@@ -56,7 +74,7 @@ export function GroupSection({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => onDeleteGroup(group.id)}
+              onClick={handleDeleteGroup}
               className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8"
             >
               <Trash2 className="w-4 h-4" />
@@ -68,16 +86,27 @@ export function GroupSection({
       {!collapsed && (
         <div className="pl-4">
           {group.channels.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {group.channels.map((channel) => (
-                <ChannelItem
-                  key={channel.id}
-                  channel={channel}
-                  onDelete={onDeleteChannel}
-                  onToggleSelection={onToggleSelection}
-                />
-              ))}
-            </div>
+            useVirtualization ? (
+              <VirtualizedChannelList
+                channels={group.channels}
+                onDelete={onDeleteChannel}
+                onToggleSelection={onToggleSelection}
+                containerHeight={600} // Reduced for better fit
+                itemHeight={80}
+                overscan={20} // Reduced overscan for better performance
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {group.channels.map((channel) => (
+                  <ChannelItem
+                    key={channel.id}
+                    channel={channel}
+                    onDelete={onDeleteChannel}
+                    onToggleSelection={onToggleSelection}
+                  />
+                ))}
+              </div>
+            )
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Plus className="w-8 h-8 mx-auto mb-2" />
@@ -88,7 +117,9 @@ export function GroupSection({
       )}
     </div>
   );
-}
+});
+
+GroupSection.displayName = 'GroupSection';
 
  
 
