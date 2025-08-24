@@ -15,16 +15,16 @@ interface ChannelItemProps {
 
 export const ChannelItem = ({ channel, onDelete, onToggleSelection, isDragging }: ChannelItemProps) => {
   const { findChannelIcon, getChannelEPGByName } = useEPG();
+
   // Use channel icon from playlist data first, then fallback to local icon lookup
   const channelIcon = channel.icon || findChannelIcon(channel.name);
   
   // Get EPG data for this channel by name
   const epgData = getChannelEPGByName(channel.name);
-  
   // Debug logging
-  if (epgData?.currentProgram) {
-    console.log(`Channel "${channel.name}" has current program:`, epgData.currentProgram.title);
-  }
+  //if (epgData?.currentProgram) {
+  //  console.log(`Channel "${channel.name}" with ID: "${channel.id}" has current program:`, epgData.currentProgram.title);
+  //}
 
   // Helper function to format time safely
   const formatTime = (time: Date | string): string => {

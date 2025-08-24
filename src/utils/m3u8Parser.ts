@@ -61,13 +61,13 @@ export class M3U8Parser {
   }
 
   static generate(data: PlaylistData): string {
-    let content = '#EXTM3U\n\n';
+    let content = '#EXTM3U\n';
 
     data.groups.forEach(group => {
       group.channels.forEach(channel => {
         content += `#EXTINF:0${channel.tvgRec ? ` tvg-rec="${channel.tvgRec}"` : ''},${channel.name}\n`;
         content += `#EXTGRP:${group.name}\n`;
-        content += `${channel.url}\n\n`;
+        content += `${channel.url}\n`;
       });
     });
 

@@ -8,7 +8,6 @@ export interface EPGChannel {
   id: string;
   name: string;
   currentProgram?: EPGProgram;
-  nextProgram?: EPGProgram;
 }
 
 export interface EPGData {
@@ -81,7 +80,7 @@ class EPGService {
         lastUpdated: new Date()
       };
 
-      console.log('Loaded EPG channels:', channels.map(c => ({ id: c.id, name: c.name, currentProgram: c.currentProgram?.title })));
+      //console.log('class EPGService. 1.1 Loaded EPG channels:', channels.map(c => ({ id: c.id, name: c.name, currentProgram: c.currentProgram?.title })));
 
      
 
@@ -130,15 +129,17 @@ class EPGService {
     
 
       channelElements.forEach((element, index) => {
+        const channelId = element.getAttribute('id');
         const name = element.getAttribute('display-name') || 
                     element.textContent?.trim();
-        const channelId = element.getAttribute('id');
-        //const icon = element.getAttribute('icon') || 
-        //            element.querySelector('icon')?.getAttribute('src') ||
-        //            element.querySelector('icon')?.textContent?.trim() ||
-        //            undefined;
         
-        if (name) {
+
+        //console.log(`1.2 found channels: ${channelId} ${name}`);
+        const currChannel = channels.find(c => c.id === channelId);
+        if (currChannel) {
+          currChannel.name = currChannel.name + `\n` + name;
+         // console.log(`Found channels with same id: ${currChannel.id} ${currChannel.name}`);
+        } else {
           channels.push({
             id: channelId,
             name: name.trim()
@@ -177,23 +178,22 @@ class EPGService {
         
         if (!start || !end) return;
         
-        const title = element.querySelector('title')?.textContent?.trim();
         
-        if (!title) return;
-        
-        const program: EPGProgram = {
-          title,
-          start,
-          end
-        };
-        
-        // Assign current or next program based on time
+        // Assign current program based on time
         if (start <= now && end > now) {
+
+          const title = element.querySelector('title')?.textContent?.trim();
+        
+          if (!title) return;
+          
+          const program: EPGProgram = {
+            title,
+            start,
+            end
+          };
+
           channel.currentProgram = program;
-          console.log(`Current program for ${channel.name}: ${program.title} (${start.toLocaleString()} - ${end.toLocaleString()})`);
-        } else if (start > now && !channel.nextProgram) {
-          channel.nextProgram = program;
-          console.log(`Next program for ${channel.name}: ${program.title} (${start.toLocaleString()} - ${end.toLocaleString()})`);
+          //console.log(`1.3 Current program for ${channel.id} ${channel.name}: ${program.title} (${start.toLocaleString()} - ${end.toLocaleString()})`);
         }
       });
       
@@ -248,11 +248,6 @@ class EPGService {
     return this.epgData;
   }
 
-  getChannelEPG(channelId: string): EPGChannel | null {
-    if (!this.epgData) return null;
-    return this.epgData.channels.find(channel => channel.id === channelId) || null;
-  }
-
   getChannelEPGByName(channelName: string): EPGChannel | null {
     if (!this.epgData) return null;
     
@@ -263,14 +258,11 @@ class EPGService {
     
     // If not found, try partial match
     if (!found) {
-      found = this.epgData.channels.find(channel => 
-        channel.name.includes(channelName) 
-        //||        channelName.includes(channel.name)
-      );
+      found = this.epgData.channels.find(channel => channel.name.includes(channelName) );
     }
     
     if (found) {
-      console.log(`Found EPG for channel "${channelName}" (matched with "${found.name}"):`, found);
+      console.log(`Found EPG for channel "${channelName}":`, found.currentProgram?.title || `not found`);
     } else {
       console.log(`No EPG found for channel "${channelName}"`);
     }

@@ -45,10 +45,6 @@ export const useEPG = () => {
     return iconsService.findChannelIcon(channelName);
   };
 
-  const getChannelEPG = (channelId: string) => {
-    return epgService.getChannelEPG(channelId);
-  };
-
   const getChannelEPGByName = (channelName: string) => {
     return epgService.getChannelEPGByName(channelName);
   };
@@ -70,7 +66,6 @@ export const useEPG = () => {
     forceRefresh,
     clearCache,
     findChannelIcon,
-    getChannelEPG,
     getChannelEPGByName
   };
 };
