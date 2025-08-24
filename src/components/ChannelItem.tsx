@@ -20,8 +20,11 @@ export const ChannelItem = React.memo(({ channel, onDelete, onToggleSelection, i
   // Memoize channel icon lookup
   const channelIcon = useMemo(() => findChannelIcon(channel.name), [findChannelIcon, channel.name]);
   
-  // Memoize EPG data lookup
-  const epgData = useMemo(() => getChannelEPGByName(channel.name), [getChannelEPGByName, channel.name]);
+  // Memoize EPG data lookup - only fetch if not dragging to improve performance
+  const epgData = useMemo(() => {
+    if (isDragging) return null; // Skip EPG lookup during drag for performance
+    return getChannelEPGByName(channel.name);
+  }, [getChannelEPGByName, channel.name, isDragging]);
 
   // Memoize time formatting function
   const formatTime = useCallback((time: Date | string): string => {
@@ -89,6 +92,9 @@ export const ChannelItem = React.memo(({ channel, onDelete, onToggleSelection, i
     target.nextElementSibling?.classList.remove('hidden');
   }, []);
 
+  // Skip rendering EPG info during drag for better performance
+  const shouldShowEPG = epgData?.currentProgram && !isDragging;
+
   return (
     <div
       ref={setNodeRef}
@@ -127,7 +133,7 @@ export const ChannelItem = React.memo(({ channel, onDelete, onToggleSelection, i
 
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm truncate">{channel.name}</div>
-        {epgData?.currentProgram && (
+        {shouldShowEPG && (
           <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
             <Clock className="w-3 h-3" />
             <span>

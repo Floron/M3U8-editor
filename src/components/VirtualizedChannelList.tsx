@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import { Channel } from '@/types/playlist';
 import { ChannelItem } from './ChannelItem';
+import { useDndContext } from '@dnd-kit/core';
 
 interface VirtualizedChannelListProps {
   channels: Channel[];
@@ -21,6 +22,10 @@ export const VirtualizedChannelList = React.memo(({
 }: VirtualizedChannelListProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
+  const { active } = useDndContext();
+
+  // Check if we're dragging a channel from this list
+  const isDraggingFromThisList = active && channels.some(ch => ch.id === active.id);
 
   // Calculate grid layout - 2 columns on medium+ screens, 1 on small
   const gridConfig = useMemo(() => {
@@ -39,17 +44,20 @@ export const VirtualizedChannelList = React.memo(({
   const visibleRange = useMemo(() => {
     const { rowHeight, itemsPerRow, totalRows } = gridConfig;
     
+    // Increase overscan during drag for better UX
+    const currentOverscan = isDraggingFromThisList ? overscan * 2 : overscan;
+    
     // Calculate which rows are visible
-    const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+    const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - currentOverscan);
     const visibleRowCount = Math.ceil(containerHeight / rowHeight);
-    const endRow = Math.min(totalRows - 1, startRow + visibleRowCount + overscan * 2);
+    const endRow = Math.min(totalRows - 1, startRow + visibleRowCount + currentOverscan * 2);
     
     // Convert row indices to item indices
     const startIndex = startRow * itemsPerRow;
     const endIndex = Math.min(channels.length - 1, (endRow + 1) * itemsPerRow - 1);
     
     return { startIndex, endIndex, startRow, endRow };
-  }, [scrollTop, containerHeight, gridConfig, overscan, channels.length]);
+  }, [scrollTop, containerHeight, gridConfig, overscan, channels.length, isDraggingFromThisList]);
 
   // Get visible channels
   const visibleChannels = useMemo(() => {
@@ -98,6 +106,7 @@ export const VirtualizedChannelList = React.memo(({
                 channel={channel}
                 onDelete={onDelete}
                 onToggleSelection={onToggleSelection}
+                isDragging={isDraggingFromThisList}
               />
             ))}
           </div>

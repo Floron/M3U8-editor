@@ -28,7 +28,7 @@ export const GroupSection = React.memo(({
 }: GroupSectionProps) => {
   const { isOver, setNodeRef } = useDroppable({ id: group.id });
 
-  // Use virtualized list for groups with more than 30 channels (lowered threshold for better UX)
+  // Use virtualized list for groups with more than 30 channels (increased threshold for better performance)
   const useVirtualization = group.channels.length > 30;
 
   // Memoize event handlers
@@ -91,9 +91,9 @@ export const GroupSection = React.memo(({
                 channels={group.channels}
                 onDelete={onDeleteChannel}
                 onToggleSelection={onToggleSelection}
-                containerHeight={600} // Reduced for better fit
+                containerHeight={500} // Reduced for better performance
                 itemHeight={80}
-                overscan={20} // Reduced overscan for better performance
+                overscan={5} // Reduced overscan for better performance
               />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
