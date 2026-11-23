@@ -8,7 +8,7 @@ This application now includes a TV guide feature that automatically loads Electr
 - **Auto-start**: When the site opens, it automatically begins loading the TV guide from local file
 - **Smart caching**: EPG data is cached for 24 hours to avoid unnecessary reloads
 - **Real-time status**: Shows loading progress with visual indicators
-- **Success notification**: Displays an alert when loading completes successfully
+- **Success notification**: Shows a toast (sonner) when a fresh load completes
 - **Error handling**: Provides clear error messages and retry options
 
 ### Channel Icon Integration
@@ -25,26 +25,32 @@ This application now includes a TV guide feature that automatically loads Electr
 - **Cache management**: Clear cache button for manual cache control
 - **Visual feedback**: Loading spinner and color-coded status messages
 
-## Technical Implementation
+## Technical Implementation (performance-focused)
 
-### EPG Service (`src/services/epgService.ts`)
-- Loads compressed EPG data from local file `/epg/epg.xml.gz`
-- Handles gzip decompression using browser APIs
-- Parses XML data to extract channel information
-- **Local icon lookup**: Matches channel names with local icon files in `/epgone_dark_logo/` folder
-- **Name cleaning**: Converts channel names to lowercase, replaces spaces with underscores, and preserves Cyrillic letters for file matching
-- **Smart caching system**: Stores EPG data in localStorage for 24 hours
-- **Cache validation**: Automatically checks cache expiration and validity
-- **Cache management**: Methods to clear cache and get cache information
+### Parsing in a Web Worker (`src/services/epgParser.ts`, `src/services/epg.worker.ts`)
+- The bundled feed is ~43 MB gzipped / ~275 MB of XML with 640k+ `<programme>` elements.
+  The old approach parsed it on the main thread with `DOMParser` (full DOM tree, seconds of UI freeze) and
+  matched programmes to channels with a linear `find()` per programme (~2 billion comparisons).
+- Now: a linear regex scan keeps only channel display names + the currently airing programme.
+  Channel lookups are O(1) via a `Map`, and most programmes are skipped by a cheap date-prefix prefilter
+  before any `Date` parsing. Typical parse time: **~0.5 s** instead of several seconds.
+- All of this runs in a Web Worker (`epg.worker.ts`), so the UI stays responsive; if Workers are
+  unavailable the same pure functions run inline as a fallback.
 
-### EPG Hook (`src/hooks/useEPG.ts`)
-- Manages EPG state and loading lifecycle
-- Auto-triggers loading when main page loads
-- Provides EPG data and status to components
+### Shared store + hook (`src/services/epgService.ts`, `src/hooks/useEPG.ts`)
+- One module-level store subscribed via `useSyncExternalStore`. Previously every channel item ran its own
+  `useEPG()` instance — N mounted items caused N parallel loads and a "already in progress" race that left
+  most items without EPG data on cold start.
+- Single-flight loading, O(1) name lookup by any display-name line (case-insensitive), partial match only as fallback.
+
+### Icon manifest (`src/services/iconsService.ts`, `public/icons-manifest.json`)
+- The icon set ships 5000+ PNGs. Instead of guessing a path per channel and collecting hundreds of 404s,
+  a build-time manifest maps (lowercased / normalized) names to real files.
+- Regenerate after changing the icon folder: `npm run generate-icons` (also runs automatically on `npm run build`).
 
 ### Channel Integration
-- ChannelItem component automatically displays EPG icons
-- Fallback to default TV icon when no EPG icon available
+- ChannelItem component automatically displays EPG icons from the manifest
+- Fallback to default TV icon when no local icon is found
 - Maintains existing channel functionality
 
 ## Data Flow
@@ -82,21 +88,17 @@ The TV guide feature works automatically - no user interaction required:
 
 ## Configuration
 
-The EPG source file path can be modified in `src/services/epgService.ts`:
+The EPG source URL is set in `src/services/epgService.ts`:
 
 ```typescript
-const response = await fetch('/epg/epg.xml.gz', {
-  method: 'GET',
-  headers: {
-    'Accept': 'application/xml, application/gzip, */*',
-    'Origin': 'null'
-  }
-});
+const EPG_URL = `${import.meta.env.BASE_URL}epg.xml.gz`; // -> /M3U8-editor/epg.xml.gz
 ```
+
+Note: the feed only shows a "current" programme while its date window covers the current time —
+regenerate `public/epg.xml.gz` periodically to keep TV-guide lines fresh.
 
 ## Future Enhancements
 
-- **Caching**: Local storage for offline EPG data
 - **Scheduling**: Automatic periodic updates
 - **Multiple sources**: Support for additional EPG providers
 - **Advanced matching**: Improved channel name matching algorithms

@@ -1,127 +1,69 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { epgService, EPGData } from '@/services/epgService';
-import { iconsService } from '@/services/iconsService';
+import { useCallback, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
+import { epgService, getEpgSnapshot, subscribeEpg } from '@/services/epgService';
+import type { EPGChannel, EPGData, CacheInfo } from '@/services/epgService';
+import {
+  findChannelIcon as lookupChannelIcon,
+  loadIconManifest,
+  getIconsSnapshot,
+  subscribeIcons
+} from '@/services/iconsService';
 
-export const useEPG = () => {
-  const [epgData, setEpgData] = useState<EPGData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isDownloaded, setIsDownloaded] = useState(false);
-  const [cacheInfo, setCacheInfo] = useState(epgService.getCacheInfo());
+export interface UseEPGResult {
+  epgData: EPGData | null;
+  isLoading: boolean;
+  error: string | null;
+  isDownloaded: boolean;
+  cacheInfo: CacheInfo;
+  /** Bumped whenever EPG data or the icon manifest changes — use as memo dependency. */
+  version: number;
+  loadEPG: () => Promise<EPGData>;
+  forceRefresh: () => void;
+  clearCache: () => void;
+  findChannelIcon: (channelName: string) => string | undefined;
+  getChannelEPGByName: (channelName: string) => EPGChannel | null;
+}
 
-  // Memoize channel lookup map for O(1) access
-  const channelMap = useMemo(() => {
-    if (!epgData) return new Map();
-    
-    const map = new Map<string, any>();
-    epgData.channels.forEach(channel => {
-      // Store by exact name
-      map.set(channel.name, channel);
-      
-      // Also store by lowercase for case-insensitive lookup
-      //map.set(channel.name.toLowerCase(), channel);
-    });
-    return map;
-  }, [epgData]);
+/**
+ * Shared EPG/icon store hook.
+ *
+ * All components subscribe to the same module-level state, so there is exactly
+ * one network load and one name map for the whole app instead of one per
+ * component instance (the old behaviour re-downloaded/re-parsed a 42 MB file
+ * whenever several items mounted in parallel).
+ */
+export const useEPG = (): UseEPGResult => {
+  const epgState = useSyncExternalStore(subscribeEpg, getEpgSnapshot);
+  const iconsState = useSyncExternalStore(subscribeIcons, getIconsSnapshot);
 
-  // Memoize icon cache
-  const iconCache = useMemo(() => {
-    const cache = new Map<string, string>();
-    return cache;
+  // Auto-load once per app session (single-flight inside the service).
+  useEffect(() => {
+    epgService.autoLoadOnce();
+    void loadIconManifest();
   }, []);
 
-  const loadEPG = async (forceRefresh: boolean = false) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const data = await epgService.loadEPG(forceRefresh);
-      setEpgData(data);
-      setIsDownloaded(true);
-      setCacheInfo(epgService.getCacheInfo());
-      
-      // Show success alert only for fresh loads
-      if (forceRefresh || !cacheInfo.hasCache) {
-        alert('TV программа успешно загружена!');
-      }
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load TV guide';
-      setError(errorMessage);
-      console.error('EPG loading error:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Errors are surfaced via store state; swallow the rejection to keep
+  // manual refresh calls from producing unhandled-promise warnings.
+  const forceRefresh = useCallback(() => {
+    void epgService.forceRefresh().catch(() => undefined);
+  }, []);
 
-  const forceRefresh = () => loadEPG(true);
-  const clearCache = () => {
+  const clearCache = useCallback(() => {
     epgService.clearCache();
-    setCacheInfo(epgService.getCacheInfo());
-    setEpgData(null);
-    setIsDownloaded(false);
-  };
-
-  // Optimized icon lookup with caching
-  const findChannelIcon = useCallback((channelName: string): string | undefined => {
-    if (!channelName) return undefined;
-    
-    // Check cache first
-    if (iconCache.has(channelName)) {
-      return iconCache.get(channelName);
-    }
-    
-    // Get icon path
-    const iconPath = iconsService.findChannelIcon(channelName);
-    
-    // Cache the result
-    iconCache.set(channelName, iconPath);
-    
-    return iconPath;
-  }, [iconCache]);
-
-  // Optimized EPG lookup with memoized map
-  const getChannelEPGByName = useCallback((channelName: string) => {
-    if (!channelName || !channelMap.size) return null;
-    
-    // Try exact match first
-    let found = channelMap.get(channelName);
-    
-    // If not found, try case-insensitive match
-   // if (!found) {
-   //   found = channelMap.get(channelName.toLowerCase());
-   // }
-    
-    // If still not found, try partial match (fallback)
-    if (!found) {
-      for (const [key, channel] of channelMap.entries()) {
-        if (channel.name.includes(channelName) || channelName.includes(channel.name)) {
-          found = channel;
-          break;
-        }
-      }
-    }
-    
-    return found || null;
-  }, [channelMap]);
-
-  useEffect(() => {
-    // Auto-load EPG when the hook is first used
-    if (!epgData && !isLoading && !isDownloaded) {
-      loadEPG();
-    }
   }, []);
 
   return {
-    epgData,
-    isLoading,
-    error,
-    isDownloaded,
-    cacheInfo,
-    loadEPG,
+    epgData: epgState.epgData,
+    isLoading: epgState.isLoading,
+    error: epgState.error,
+    isDownloaded: epgState.isDownloaded,
+    cacheInfo: epgState.cacheInfo,
+    version: epgState.version + iconsState.version,
+    loadEPG: () => epgService.loadEPG(),
     forceRefresh,
     clearCache,
-    findChannelIcon,
-    getChannelEPGByName
+    // Stable module-level functions — safe to use in memo dependencies.
+    findChannelIcon: lookupChannelIcon,
+    getChannelEPGByName: epgService.getChannelEPGByName
   };
 };

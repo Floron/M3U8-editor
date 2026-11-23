@@ -14,6 +14,14 @@ interface PerformanceMonitorProps {
   enabled?: boolean;
 }
 
+/**
+ * Dev-only render profiler.
+ *
+ * The previous version called setState inside an effect cleanup without a
+ * dependency array, which re-triggered the effect forever (an endless
+ * self-re-render loop). Now timings are accumulated in refs during each
+ * render and flushed to state at most once per second.
+ */
 export const PerformanceMonitor = React.memo(({ 
   componentName, 
   enabled = process.env.NODE_ENV === 'development' 
@@ -24,34 +32,47 @@ export const PerformanceMonitor = React.memo(({
     lastRenderTime: 0,
     totalRenderTime: 0
   });
-  
-  const [isVisible, setIsVisible] = useState(false);
-  const renderStartTime = useRef<number>(0);
-  const renderCountRef = useRef<number>(0);
 
+  const [isVisible, setIsVisible] = useState(false);
+  const pendingRef = useRef<{ count: number; totalMs: number; lastMs: number }>({
+    count: 0,
+    totalMs: 0,
+    lastMs: 0
+  });
+  const renderStartRef = useRef<number>(performance.now());
+
+  // Runs after every render of this component — accumulate only (no setState).
+  useEffect(() => {
+    if (!enabled) return;
+    const now = performance.now();
+    const delta = Math.max(0, now - renderStartRef.current);
+    renderStartRef.current = now;
+
+    pendingRef.current.count += 1;
+    pendingRef.current.totalMs += delta;
+    pendingRef.current.lastMs = delta;
+  });
+
+  // Flush accumulated timings at most once per second.
   useEffect(() => {
     if (!enabled) return;
 
-    renderStartTime.current = performance.now();
-    renderCountRef.current += 1;
+    const intervalId = setInterval(() => {
+      const pending = pendingRef.current;
+      if (pending.count === 0) return;
+      pendingRef.current = { count: 0, totalMs: 0, lastMs: 0 };
 
-    return () => {
-      const renderTime = performance.now() - renderStartTime.current;
-      
-      setMetrics(prev => {
-        const newTotalTime = prev.totalRenderTime + renderTime;
-        const newCount = renderCountRef.current;
-        const newAverage = newTotalTime / newCount;
-        
-        return {
-          renderCount: newCount,
-          averageRenderTime: newAverage,
-          lastRenderTime: renderTime,
-          totalRenderTime: newTotalTime
-        };
-      });
-    };
-  });
+      setMetrics(prev => ({
+        renderCount: prev.renderCount + pending.count,
+        averageRenderTime:
+          (prev.totalRenderTime + pending.totalMs) / (prev.renderCount + pending.count),
+        lastRenderTime: pending.lastMs,
+        totalRenderTime: prev.totalRenderTime + pending.totalMs
+      }));
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [enabled]);
 
   if (!enabled) return null;
 
@@ -80,7 +101,7 @@ export const PerformanceMonitor = React.memo(({
               <X className="w-3 h-3" />
             </Button>
           </div>
-          
+
           <div className="space-y-1 text-xs">
             <div>Рендеров: {metrics.renderCount}</div>
             <div>Последний: {metrics.lastRenderTime.toFixed(2)}ms</div>

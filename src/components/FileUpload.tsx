@@ -18,6 +18,8 @@ export const FileUpload = ({ onPlaylistLoad }: FileUploadProps) => {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    // Allow re-selecting the same file in a row.
+    event.target.value = '';
 
     const reader = new FileReader();
     reader.onload = (e) => {

@@ -9,6 +9,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "generate-icons": "node scripts/generate-icon-manifest.mjs",
+    "prebuild": "npm run generate-icons",
     "preview": "vite preview --port 80"
   },
   "dependencies": {

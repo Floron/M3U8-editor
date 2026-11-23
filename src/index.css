@@ -127,7 +127,9 @@ All colors MUST be HSL.
   }
   
   .channel-item {
-    @apply transition-all duration-200 hover:bg-secondary/50;
+    /* transition-colors instead of transition-all: hundreds of items
+       animating every property (layout included) made drags janky */
+    @apply transition-colors duration-200 hover:bg-secondary/50;
   }
   
   .group-header {

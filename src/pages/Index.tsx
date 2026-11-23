@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { PlaylistEditor } from '@/components/PlaylistEditor';
 import { ExportButton } from '@/components/ExportButton';
@@ -8,7 +8,6 @@ import { useEPG } from '@/hooks/useEPG';
 
 const Index = () => {
   const [playlistData, setPlaylistData] = useState<PlaylistData | null>(null);
-  const [isProcessingPlaylist, setIsProcessingPlaylist] = useState(false);
   
   // Initialize EPG service - will auto-download when page loads
   const { 
@@ -21,15 +20,11 @@ const Index = () => {
     clearCache
   } = useEPG();
 
-  const handlePlaylistLoad = async (data: PlaylistData) => {
-    setIsProcessingPlaylist(true);
-    
-    // Simulate processing time and add EPG data matching
-    setTimeout(() => {
-      setPlaylistData(data);
-      setIsProcessingPlaylist(false);
-    }, 1500); // 1.5 seconds processing time
-  };
+  // M3U8 parsing is fast enough to run synchronously — the old code added a
+  // fake 1.5s "processing" delay before showing the editor.
+  const handlePlaylistLoad = useCallback((data: PlaylistData) => {
+    setPlaylistData(data);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -104,21 +99,12 @@ const Index = () => {
         </header>
 
         <div className="space-y-6">
-          {!playlistData && !isProcessingPlaylist ? (
+          {!playlistData ? (
             <div className="text-center py-12">
               <FileUpload onPlaylistLoad={handlePlaylistLoad} />
               <p className="text-sm text-muted-foreground mt-4">
                 Загрузите M3U8 файл для начала редактирования
               </p>
-            </div>
-          ) : isProcessingPlaylist ? (
-            <div className="text-center py-12">
-              <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                <p className="text-lg font-medium text-muted-foreground">
-                  Плейлист обрабатывается. Пожалуйста подождите...
-                </p>
-              </div>
             </div>
           ) : (
             <>

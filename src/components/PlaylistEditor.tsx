@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useDeferredValue, useMemo, useCallback } from 'react';
 import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 import { PlaylistData, Group, Channel } from '@/types/playlist';
 import { GroupSection } from './GroupSection';
@@ -19,19 +19,24 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
+  // Deferred search keeps the input responsive on large playlists: filtering
+  // (and the re-render of every matching item) happens after typing pauses.
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
   // Memoize filtered data to prevent recalculation on every render
   const filteredData = useMemo(() => {
-    if (!searchTerm) return data;
+    if (!deferredSearchTerm) return data;
 
+    const termLower = deferredSearchTerm.toLowerCase();
     const filteredGroups = data.groups.map(group => ({
       ...group,
       channels: group.channels.filter(channel =>
-        channel.name.toLowerCase().includes(searchTerm.toLowerCase())
+        channel.name.toLowerCase().includes(termLower)
       )
     })).filter(group => group.channels.length > 0);
 
     return { groups: filteredGroups };
-  }, [data, searchTerm]);
+  }, [data, deferredSearchTerm]);
 
   // Memoize selected channels calculation
   const selectedChannels = useMemo(() => {
@@ -63,13 +68,18 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     return channelMap.get(id) || null;
   }, [channelMap]);
 
-  // Optimized group finder using memoized map
-  const findGroupByChannelId = useCallback((channelId: string): Group | null => {
-    for (const group of data.groups) {
-      if (group.channels.some(ch => ch.id === channelId)) return group;
-    }
-    return null;
+  // O(1) channel -> group lookup map (was a linear scan over all channels)
+  const groupByChannelId = useMemo(() => {
+    const map = new Map<string, Group>();
+    data.groups.forEach(group => {
+      group.channels.forEach(channel => map.set(channel.id, group));
+    });
+    return map;
   }, [data]);
+
+  const findGroupByChannelId = useCallback((channelId: string): Group | null => {
+    return groupByChannelId.get(channelId) ?? null;
+  }, [groupByChannelId]);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -126,13 +136,15 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
 
     const selectedIds = getSelectedChannelIds();
     const isMultiDrag = activeChannel.selected && selectedIds.length > 1;
+    // Set makes membership checks O(1) instead of an array scan per channel.
+    const selectedIdSet = new Set(selectedIds);
 
     // Dropped over groups sidebar item: move to end of that group
     if (overId.startsWith('group-')) {
       const targetGroupId = overId.replace('group-', '');
       const targetGroup = groupMap.get(targetGroupId);
       if (!targetGroup) return;
-      const endIndex = targetGroup.channels.filter(ch => !selectedIds.includes(ch.id)).length;
+      const endIndex = targetGroup.channels.filter(ch => !selectedIdSet.has(ch.id)).length;
       if (isMultiDrag) {
         moveSelectedChannelsToGroupAtIndex(selectedIds, targetGroupId, endIndex);
       } else {
@@ -169,7 +181,7 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     const targetGroup = groupMap.get(overId);
     if (!targetGroup) return;
     if (isMultiDrag) {
-      moveSelectedChannelsToGroupAtIndex(selectedIds, targetGroup.id, targetGroup.channels.filter(ch => !selectedIds.includes(ch.id)).length);
+      moveSelectedChannelsToGroupAtIndex(selectedIds, targetGroup.id, targetGroup.channels.filter(ch => !selectedIdSet.has(ch.id)).length);
     } else {
       moveChannelToGroup(activeChannel, targetGroup.id);
     }
@@ -234,16 +246,19 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
     const targetGroup = data.groups.find(g => g.id === targetGroupId);
     if (!targetGroup) return;
 
+    // O(1) membership checks inside the loops below.
+    const selectedIdSet = new Set(selectedIds);
+
     // Preserve the original order of selected channels as they appear in the data
     const selectedChannelsInOrder: Channel[] = [];
     data.groups.forEach(group => {
       group.channels.forEach(channel => {
-        if (selectedIds.includes(channel.id)) selectedChannelsInOrder.push(channel);
+        if (selectedIdSet.has(channel.id)) selectedChannelsInOrder.push(channel);
       });
     });
 
     const newGroups = data.groups.map(group => {
-      const remaining = group.channels.filter(ch => !selectedIds.includes(ch.id));
+      const remaining = group.channels.filter(ch => !selectedIdSet.has(ch.id));
       if (group.id === targetGroupId) {
         const channels = [...remaining];
         const insertIndex = Math.max(0, Math.min(targetIndex, channels.length));
@@ -298,17 +313,19 @@ export const PlaylistEditor = ({ data, onDataChange }: PlaylistEditorProps) => {
   }, [data, onDataChange]);
 
   const selectAllSearchResults = useCallback(() => {
+    if (!deferredSearchTerm) return;
+    const termLower = deferredSearchTerm.toLowerCase();
     const newGroups = data.groups.map(group => ({
       ...group,
       channels: group.channels.map(channel =>
-        channel.name.toLowerCase().includes(searchTerm.toLowerCase())
+        channel.name.toLowerCase().includes(termLower)
           ? { ...channel, selected: true }
           : channel
       )
     }));
 
     onDataChange({ groups: newGroups });
-  }, [data, searchTerm, onDataChange]);
+  }, [data, deferredSearchTerm, onDataChange]);
 
   const deleteSelectedChannels = useCallback(() => {
     const newGroups = data.groups.map(group => ({
