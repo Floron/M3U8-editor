@@ -13,6 +13,7 @@ node_modules
 #epg file
 #epg/epg.xml.gz
 epg/epg.xml
+public/*
 
 # Editor directories and files
 dist/*
